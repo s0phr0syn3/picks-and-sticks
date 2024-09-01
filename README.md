@@ -16,7 +16,7 @@ This entirely self-contained codebase powers a web application which has several
 
 Documentation via Swagger file probably coming at some point but for now, here are some of the available endpoints, all accessible from `{host}/api/`:
 
-### Populate APIs (/api/populate)
+### Populate APIs (`/api/populate`)
 - `/picks`
   - Seeds the `picks` table with fake data for every user in `users` and every game week in `weekSchedules` (mostly used for testing)
 - `/schedules`
@@ -26,7 +26,7 @@ Documentation via Swagger file probably coming at some point but for now, here a
 - `/teams`
   - Seeds the `teams` table with all NFL teams from pro-football-reference.com (only needs to run once unless the NFL expands/contracts)
 
-### Game APIs (/api/game)
+### Game APIs (`/api/game`)
 - `/generate-order`
   - Returns pick orders for all weeks. For week 1, this is randomly generated, so this endpoint will return a different order each time the endpoint is refreshed. All other weeks are fixed order according to the sum of points in the `picks` table for that week.
 - `/generate-order/week/{week}`
