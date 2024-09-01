@@ -20,3 +20,18 @@ export const weekSchedules = sqliteTable('week_schedules', {
   overUnder: real('over_under'),
 })
 
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey(),
+  userName: text('username').notNull().unique(),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+})
+
+export const picks = sqliteTable('picks', {
+  id: integer('id').primaryKey(),
+  week: integer('week').notNull(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  teamId: integer('team_id').references(() => teams.id).notNull(),
+  assignedById: integer('assigned_by_id').references(() => users.id),
+  points: integer('points').default(0)
+})
