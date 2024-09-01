@@ -1,4 +1,4 @@
-# Picks and Sticks (or Sticks and Picks if you're nasty)
+![picks-and-sticks.webp](static%2Fpicks-and-sticks.webp)
 
 The world-famous NFL score pick 'em game known as Picks and Sticks game, which all started when someone forced me to eat a 🍒
 
