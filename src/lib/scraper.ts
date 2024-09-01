@@ -71,7 +71,7 @@ export async function scrapeSchedules(year: number) {
     const gameTime = $(elem).find('td[data-stat="gametime"]').text().trim()
     const homeTeam = $(elem).find('td[data-stat="home_team"] a').text().trim()
     const awayTeam = $(elem).find('td[data-stat="visitor_team"] a').text().trim()
-    const gameId = generateHash(`${gameDate}-${homeTeam}-${awayTeam}`)
+    const gameId = generateHash(`${week}-${homeTeam}-${awayTeam}`)
     const homeScore = $(elem).find('td[data-stat="pts_win"] a').text().trim()
     const awayScore = $(elem).find('td[data-stat="pts_lose"] a').text().trim()
 
@@ -80,7 +80,7 @@ export async function scrapeSchedules(year: number) {
 
     if (parseInt(week, 10) && gameDate && homeTeamId && awayTeamId) {
       console.log(`Pushing game ID ${gameId}: Week ${week} on ${gameDate}, ${awayTeam} @ ${homeTeam}`)
-      scheduleData.push({
+      await db.insert(weekSchedules).values({
         gameId,
         week: parseInt(week, 10),
         gameDate,
@@ -89,23 +89,19 @@ export async function scrapeSchedules(year: number) {
         awayTeamId,
         homeScore: parseInt(homeScore, 10),
         awayScore: parseInt(awayScore, 10),
+      }).onConflictDoUpdate({
+        target: weekSchedules.gameId,
+        set: {
+          gameDate: gameDate,
+          gameTime: gameTime,
+          homeScore: parseInt(homeScore, 10),
+          awayScore: parseInt(awayScore, 10),
+        }
       })
     }
   }).get()
 
   await Promise.all(promises)
 
-  console.log(`Attempting to insert ${scheduleData.length} games...`)
-
-  for (const schedule of scheduleData) {
-    try {
-      const homeTeam = await db.select({name: teams.name}).from(teams).where(sql`${schedule.homeTeamId} = ${teams.id}`).limit(1).then(res => res[0]?.name)
-      const awayTeam = await db.select({name: teams.name}).from(teams).where(sql`${schedule.awayTeamId} = ${teams.id}`).limit(1).then(res => res[0]?.name)
-      console.log(`Inserting game ${schedule.gameId}: ${awayTeam} @ ${homeTeam} on ${schedule.gameDate}`)
-      await db.insert(weekSchedules).values(schedule).onConflictDoNothing()
-    } catch (e) {
-      console.error(`Error inserting records into week_schedules: ${e}`)
-    }
-  }
-  console.log(`Inserted ${scheduleData.length} schedules into the database for the year ${year}.`)
+  console.log(`Inserted schedules into the database for the year ${year}.`)
 }
