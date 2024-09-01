@@ -9,12 +9,12 @@ This entirely self-contained codebase powers a web application which has several
 - Exposing several API endpoints which:
   - Scrape pro-football-reference.com for team and schedule/score data and load the cleansed data into a SQLite database
   - Generate fake pick data for testing pick order week over week based on total score
-  - Viewing week by week pick orders (via `/api/game/generate-order/week/{week}`), or viewing all week pick orders (via `/api/game/generate-order`)
+  - Allow users to view week by week pick orders (via `/api/game/generate-order/week/{week}`), or view all week pick orders (via `/api/game/generate-order`)
   - More to come...
 
 ## API
 
-Documentation via Swagger file probably coming at some point but for now, here are some of the available endpoints, all accessible from `{host}/api/`:
+Documentation via [Swagger file](https://swagger.io/blog/api-documentation/what-is-api-documentation-and-why-it-matters/) probably coming at some point but for now, here are some of the available endpoints:
 
 ### Populate APIs (`/api/populate`)
 - `/picks`
