@@ -25,7 +25,7 @@ export async function determinePickOrder(week: number) {
         userId: users.id,
         firstName: users.firstName,
         lastName: users.lastName,
-        totalPoints: sum(picks.points),
+        totalPoints: sql`coalesce(sum(picks.points), 0)`,
       })
       .from(users)
       .leftJoin(picks, sql`${users.id} = ${picks.userId}`)
@@ -34,6 +34,6 @@ export async function determinePickOrder(week: number) {
       .orderBy(desc(sum(picks.points)))
       .all()
 
-    return userPoints.map(user => `${user.firstName} ${user.lastName}`)
+    return userPoints.map(user => `${user.firstName} ${user.lastName} (${user.totalPoints} ${user.totalPoints === 1 ? 'point' : 'points'})`)
   }
 }
