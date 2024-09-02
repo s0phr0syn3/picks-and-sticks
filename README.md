@@ -33,7 +33,7 @@ Documentation via [Swagger file](https://swagger.io/blog/api-documentation/what-
   - For a given NFL week (1 through 18), returns the pick order for that week. For week 1, this is randomly generated, so this endpoint will return a different order each time at `/generate-order/week/1`. All other weeks are fixed order according to the sum of points in the `picks` table for that week.
   - `/generate-order/week/19` also returns data since it looks up the prior week's scores, but this is irrelevant for Picks and Sticks since we are only concerned with regular season play. 
 - `/randomize`
-  - Legacy endpoint for testing the random order generation for week 1.
+  - Legacy (yes, already) endpoint for testing the random order generation for week 1.
 
 ## Web Application
 
