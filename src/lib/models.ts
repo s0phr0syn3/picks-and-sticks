@@ -30,6 +30,7 @@ export const users = sqliteTable('users', {
 export const picks = sqliteTable('picks', {
   id: integer('id').primaryKey(),
   week: integer('week').notNull(),
+  round: integer('round').notNull(),
   userId: integer('user_id').references(() => users.id).notNull(),
   teamId: integer('team_id').references(() => teams.id).notNull(),
   assignedById: integer('assigned_by_id').references(() => users.id),

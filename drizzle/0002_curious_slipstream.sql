@@ -1,0 +1,1 @@
+ALTER TABLE `picks` ADD `round` integer NOT NULL;

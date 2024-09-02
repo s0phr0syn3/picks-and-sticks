@@ -33,7 +33,6 @@ export async function determinePickOrder(week: number) {
       .groupBy(picks.userId)
       .orderBy(desc(sum(picks.points)))
       .all()
-
     return userPoints.map(user => `${user.firstName} ${user.lastName} (${user.totalPoints} ${user.totalPoints === 1 ? 'point' : 'points'})`)
   }
 }

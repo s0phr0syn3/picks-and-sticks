@@ -15,6 +15,13 @@
       "when": 1725216622705,
       "tag": "0001_careful_sprite",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1725236792067,
+      "tag": "0002_curious_slipstream",
+      "breakpoints": true
     }
   ]
 }

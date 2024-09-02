@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types'
+import { db } from '$lib/db'
+import { weekSchedules } from '$lib/models'
 import { determinePickOrder } from '$lib/picks'
-import { db } from '$lib/db';
-import { weekSchedules } from '$lib/models';
 
 export const GET: RequestHandler = async () => {
   try {
@@ -9,14 +9,26 @@ export const GET: RequestHandler = async () => {
     const weeks = db.select({week: weekSchedules.week}).from(weekSchedules).groupBy(weekSchedules.week).orderBy(weekSchedules.week).all().map(x => x.week)
     const weekOrders = []
     for (const week of weeks) {
-      weekOrders.push({
-        week: week,
-        order: await determinePickOrder(week)
-      })
+      const order = await determinePickOrder(week)
+      for (let round = 1; round <= 4; round++) {
+        if (round % 2) {
+          weekOrders.push({
+            week: week,
+            round: round,
+            order: [...order]
+          })
+        } else {
+          weekOrders.push({
+            week: week,
+            round: round,
+            order: [...order].reverse()
+          })
+        }
+      }
     }
-
+    console.log(`Week orders generated successfully.`)
     return new Response(JSON.stringify({
-      message: `Order generated for all weeks.`,
+      message: `Week orders generated successfully.`,
       data: weekOrders
     }), { status: 200, headers: { 'Content-Type': 'application/json' }})
   } catch (error: any) {
