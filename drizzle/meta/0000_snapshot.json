@@ -1,11 +1,11 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "33505815-401a-4e0d-8c24-ccb5a812bb0c",
+  "id": "81b35b06-b5e5-4b7a-bdc9-736043dab433",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
-    "teams": {
-      "name": "teams",
+    "picks": {
+      "name": "picks",
       "columns": {
         "id": {
           "name": "id",
@@ -14,36 +14,96 @@
           "notNull": true,
           "autoincrement": false
         },
-        "team_id": {
-          "name": "team_id",
-          "type": "text",
+        "week": {
+          "name": "week",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "name": {
-          "name": "name",
-          "type": "text",
+        "round": {
+          "name": "round",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "order_in_round": {
+          "name": "order_in_round",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assigned_by_id": {
+          "name": "assigned_by_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
-      "indexes": {
-        "teams_team_id_unique": {
-          "name": "teams_team_id_unique",
-          "columns": [
+      "indexes": {},
+      "foreignKeys": {
+        "picks_user_id_users_id_fk": {
+          "name": "picks_user_id_users_id_fk",
+          "tableFrom": "picks",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "picks_team_id_teams_team_id_fk": {
+          "name": "picks_team_id_teams_team_id_fk",
+          "tableFrom": "picks",
+          "tableTo": "teams",
+          "columnsFrom": [
             "team_id"
           ],
-          "isUnique": true
+          "columnsTo": [
+            "team_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "picks_assigned_by_id_users_id_fk": {
+          "name": "picks_assigned_by_id_users_id_fk",
+          "tableFrom": "picks",
+          "tableTo": "users",
+          "columnsFrom": [
+            "assigned_by_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
-    "week_schedules": {
-      "name": "week_schedules",
+    "schedules": {
+      "name": "schedules",
       "columns": {
         "id": {
           "name": "id",
@@ -54,7 +114,7 @@
         },
         "game_id": {
           "name": "game_id",
-          "type": "text",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -68,13 +128,6 @@
         },
         "game_date": {
           "name": "game_date",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "game_time": {
-          "name": "game_time",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -124,8 +177,8 @@
         }
       },
       "indexes": {
-        "week_schedules_game_id_unique": {
-          "name": "week_schedules_game_id_unique",
+        "schedules_game_id_unique": {
+          "name": "schedules_game_id_unique",
           "columns": [
             "game_id"
           ],
@@ -133,33 +186,130 @@
         }
       },
       "foreignKeys": {
-        "week_schedules_home_team_id_teams_id_fk": {
-          "name": "week_schedules_home_team_id_teams_id_fk",
-          "tableFrom": "week_schedules",
+        "schedules_home_team_id_teams_team_id_fk": {
+          "name": "schedules_home_team_id_teams_team_id_fk",
+          "tableFrom": "schedules",
           "tableTo": "teams",
           "columnsFrom": [
             "home_team_id"
           ],
           "columnsTo": [
-            "id"
+            "team_id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "week_schedules_away_team_id_teams_id_fk": {
-          "name": "week_schedules_away_team_id_teams_id_fk",
-          "tableFrom": "week_schedules",
+        "schedules_away_team_id_teams_team_id_fk": {
+          "name": "schedules_away_team_id_teams_team_id_fk",
+          "tableFrom": "schedules",
           "tableTo": "teams",
           "columnsFrom": [
             "away_team_id"
           ],
           "columnsTo": [
-            "id"
+            "team_id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "teams": {
+      "name": "teams",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "short_name": {
+          "name": "short_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "logo_url": {
+          "name": "logo_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "teams_team_id_unique": {
+          "name": "teams_team_id_unique",
+          "columns": [
+            "team_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "username": {
+          "name": "username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "first_name": {
+          "name": "first_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "users_username_unique": {
+          "name": "users_username_unique",
+          "columns": [
+            "username"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     }

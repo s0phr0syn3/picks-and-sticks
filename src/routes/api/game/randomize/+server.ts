@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types'
-import { randomizeFirstWeekOrder } from '$lib/picks'
+import { randomizeFirstWeekOrder } from '$lib/server/picks'
 
 export const GET: RequestHandler = async () => {
   try {

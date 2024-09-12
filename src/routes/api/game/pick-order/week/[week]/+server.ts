@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types'
-import { determinePickOrder } from '$lib/picks'
+import { determinePickOrder } from '$lib/server/picks'
 
 export const GET: RequestHandler = async ({ params }) => {
   const { week } = params

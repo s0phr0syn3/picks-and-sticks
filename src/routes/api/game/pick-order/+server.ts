@@ -1,12 +1,12 @@
 import type { RequestHandler } from './$types'
-import { db } from '$lib/db'
-import { weekSchedules } from '$lib/models'
-import { determinePickOrder } from '$lib/picks'
+import { db } from '$lib/server/db'
+import { schedules } from '$lib/server/models'
+import { determinePickOrder } from '$lib/server/picks'
 
 export const GET: RequestHandler = async () => {
   try {
     console.log(`Determining pick orders for all weeks...`)
-    const weeks = db.select({week: weekSchedules.week}).from(weekSchedules).groupBy(weekSchedules.week).orderBy(weekSchedules.week).all().map(x => x.week)
+    const weeks = db.select({week: schedules.week}).from(schedules).groupBy(schedules.week).orderBy(schedules.week).all().map(x => x.week)
     const weekOrders = []
     for (const week of weeks) {
       const order = await determinePickOrder(week)
