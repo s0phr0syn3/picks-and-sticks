@@ -22,12 +22,12 @@
   <h1 class="text-4xl font-bold text-center">Picks for Week {week}</h1>
 
   <div class="mx-auto">
-    <button class="btn btn-primary" on:click={() => changeWeek(-1)}>Previous Week</button>
-    <button class="btn btn-secondary" on:click={() => changeWeek(1)}>Next Week</button>
+    <button class="btn btn-primary text-lg" on:click={() => changeWeek(-1)} disabled={week <= 1}>Previous Week</button>
+    <button class="btn btn-secondary text-lg float-right" on:click={() => changeWeek(1)} disabled={week >= 18}>Next Week</button>
 
     <table class="table table-zebra">
       <thead>
-      <tr class="text-lg font-bold">
+      <tr class="text-xl text-center font-bold">
         <th class="w-1/5">Round</th>
         <th class="w-1/5">User</th>
         <th class="w-1/5">Team</th>
@@ -38,12 +38,12 @@
       <tbody>
       {#if picks.length > 0}
         {#each picks as pick}
-          <tr>
+          <tr class="text-md text-center">
             <td>{pick.roundNum}</td>
             <td>{pick.fullName}</td>
             <td>{pick.teamName}</td>
             <td>{pick.assignedBy ? pick.assignedBy : ''}</td>
-            <td>{pick.points ? pick.points : ''}</td>
+            <td class="font-extrabold">{pick.points ? pick.points : ''}</td>
           </tr>
         {/each}
       {:else}
