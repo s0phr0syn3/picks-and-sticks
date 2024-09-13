@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types'
-import { db } from '$lib/server/db'
+import { test as db } from '$lib/server/db'
 import { picks, teams, users, schedules } from '$lib/server/models'
-import { randomSort } from '$lib/server/utils'
+import { randomSort } from '$lib/utils'
 
 export const GET: RequestHandler = async () => {
   try {

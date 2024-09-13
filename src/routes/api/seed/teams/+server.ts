@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types'
-import { db } from '$lib/server/db'
+import { test as db } from '$lib/server/db'
 import { teams } from '$lib/server/models'
 import { fetchNFLTeams } from '$lib/api'
-import { successResponse, failureResponse } from '$lib/server/utils'
+import { successResponse, failureResponse } from '$lib/utils'
 
 export const GET: RequestHandler = async () => {
   try {

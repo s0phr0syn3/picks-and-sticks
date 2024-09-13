@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types'
-import { db } from '$lib/server/db'
+import { test as db } from '$lib/server/db'
 import { schedules } from '$lib/server/models';
 import { fetchNFLSchedule } from '$lib/api'
-import { getWeekFromDate, successResponse, failureResponse } from '$lib/server/utils'
+import { getWeekFromDate, successResponse, failureResponse } from '$lib/utils'
 
 export const GET: RequestHandler = async () => {
   const year: number = 2024
