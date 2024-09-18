@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types'
-import { test as db } from '$lib/server/db'
+import { prod as db } from '$lib/server/db'
 import { schedules } from '$lib/server/models';
 import { fetchNFLSchedule } from '$lib/api'
 import { getWeekFromDate, successResponse, failureResponse } from '$lib/utils'
@@ -20,7 +20,7 @@ export const GET: RequestHandler = async () => {
     }))
 
     for (const game of insertData) {
-      await db.insert(schedules).values(game).onConflictDoNothing()
+      await db.insert(schedules).values(game).onConflictDoUpdate({target: schedules.eventId, set: {homeScore: game.homeScore, awayScore: game.awayScore}})
     }
 
     return successResponse({

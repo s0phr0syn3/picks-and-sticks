@@ -18,43 +18,44 @@
   }
 </script>
 
-<main>
-  <h1 class="text-4xl font-bold text-center">Picks for Week {week}</h1>
+<main class="min-h-screen bg-gray-100 py-10">
+  <div class="container mx-auto px-4">
+    <h1 class="text-4xl font-bold text-center text-[#007030] mb-8">Picks for Week {week}</h1>
 
-  <div class="mx-auto">
-    <button class="btn btn-primary text-lg" on:click={() => changeWeek(-1)} disabled={week <= 1}>Previous Week</button>
-    <button class="btn btn-secondary text-lg float-right" on:click={() => changeWeek(1)} disabled={week >= 18}>Next Week</button>
+    <div class="flex justify-between mb-6">
+      <button class="btn btn-primary text-lg" on:click={() => changeWeek(-1)} disabled={week <= 1}>Previous Week</button>
+      <button class="btn btn-secondary text-lg float-right" on:click={() => changeWeek(1)} disabled={week >= 18}>Next Week</button>
+    </div>
 
-    <table class="table table-zebra">
-      <thead>
-      <tr class="text-xl text-center font-bold">
-        <th class="w-1/5">Round</th>
-        <th class="w-1/5">User</th>
-        <th class="w-1/5">Team</th>
-        <th class="w-1/5">Assigned By</th>
-        <th class="w-1/5">Points</th>
-      </tr>
-      </thead>
-      <tbody>
-      {#if picks.length > 0}
-        {#each picks as pick}
-          <tr class="text-md text-center">
-            <td>{pick.roundNum}</td>
-            <td>{pick.fullName}</td>
-            <td>{pick.teamName}</td>
-            <td>{pick.assignedBy ? pick.assignedBy : ''}</td>
-            <td class="font-extrabold">{pick.points ? pick.points : ''}</td>
+    <div class="overflow-x-auto bg-white shadow-lg rounded-lg">
+      <table class="min-w-full table-auto border-collapse">
+        <thead class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
+          <tr>
+            <th class="py-3 px-6 text-left">Round</th>
+            <th class="py-3 px-6 text-left">User</th>
+            <th class="py-3 px-6 text-left">Team</th>
+            <th class="py-3 px-6 text-left">Assigned By</th>
+            <th class="py-3 px-6 text-left">Points</th>
           </tr>
-        {/each}
-      {:else}
-        <tr>
-          <td class="text-center" colspan="5">No picks available for this week.</td>
-        </tr>
-      {/if}
-      </tbody>
-    </table>
+        </thead>
+        <tbody class="text-gray-700 text-sm">
+        {#if picks.length > 0}
+          {#each picks as pick}
+            <tr class="border-b hover:bg-gray-100">
+              <td class="py-3 px-6">{pick.roundNum}</td>
+              <td class="py-3 px-6">{pick.fullName}</td>
+              <td class="py-3 px-6">{pick.teamName}</td>
+              <td class="py-3 px-6">{pick.assignedBy ? pick.assignedBy : ''}</td>
+              <td class="py-3 px-6 font-bold">{pick.points ? pick.points : ''}</td>
+            </tr>
+          {/each}
+        {:else}
+          <tr>
+            <td class="text-center py-6" colspan="5">No picks available for this week.</td>
+          </tr>
+        {/if}
+        </tbody>
+      </table>
+    </div>
   </div>
 </main>
-
-<style>
-</style>
