@@ -1,12 +1,14 @@
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import Database from 'better-sqlite3'
-import { teams, schedules, users, picks } from '$lib/server/models';
+import { teams, schedules, users, picks } from '$lib/server/models'
 
 const prodDb = new Database('./src/lib/server/production.db')
 const testDb = new Database('./src/lib/server/test.db')
 
-export const prod = drizzle(prodDb);
-export const test = drizzle(testDb);
+const prod = drizzle(prodDb)
+const test = drizzle(testDb)
+
+export const db = prod
 
 async function syncDatabases() {
   // prod

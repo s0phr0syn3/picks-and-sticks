@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types'
-import { prod as db } from '$lib/server/db'
+import { db } from '$lib/server/db'
 import { schedules } from '$lib/server/models';
 import { fetchNFLSchedule } from '$lib/api'
 import { getWeekFromDate, successResponse, failureResponse } from '$lib/utils'

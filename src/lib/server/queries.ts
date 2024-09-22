@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { prod as db } from '$lib/server/db';
+import { db } from '$lib/server/db';
 import { picks, schedules } from '$lib/server/models';
 
 export const getTeamScores = async (week: number) => {

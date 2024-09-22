@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types'
-import { test as db } from '$lib/server/db'
+import { db } from '$lib/server/db'
 import { teams } from '$lib/server/models'
 import { fetchNFLTeams } from '$lib/api'
 import { successResponse, failureResponse } from '$lib/utils'
