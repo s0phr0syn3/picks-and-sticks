@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { picks, schedules } from '$lib/server/models';
+import { picks, schedules, teams } from '$lib/server/models';
 
 export const getTeamScores = async (week: number) => {
   const homeScores = await db
@@ -41,4 +41,34 @@ export const getPickPointsForWeek = async (week: number) => {
       points: teamScore ? teamScore.points : 0,
     }
   })
+}
+
+export const getAvailableTeams = (week: number, selectedTeams: Set<number>) => {
+  const weekTeams = db
+    .select({
+      homeTeamId: schedules.homeTeamId,
+      awayTeamId: schedules.awayTeamId,
+    })
+    .from(schedules)
+    .where(eq(schedules.week, week))
+    .all()
+
+  const teamIds: Array<number> = weekTeams.reduce((ids, game) => {
+    ids.push(game.homeTeamId, game.awayTeamId)
+    return ids
+  }, [])
+
+  const availableTeamDetails = db
+    .select({
+      id: teams.teamId,
+      name: teams.name,
+    })
+    .from(teams)
+    .where(
+      and(
+        sql`${teams.teamId} IN (${teamIds.join(',')})`,
+        sql`${teams.teamId} NOT IN (${[...selectedTeams].join(',')})`
+      )
+    )
+    .all()
 }
