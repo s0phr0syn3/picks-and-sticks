@@ -43,7 +43,7 @@ export const getPickPointsForWeek = async (week: number) => {
   })
 }
 
-export const getAvailableTeams = (week: number, selectedTeams: Set<number>) => {
+export const getAvailableTeams = async (week: number, selectedTeams: Set<number>) => {
   const weekTeams = db
     .select({
       homeTeamId: schedules.homeTeamId,
