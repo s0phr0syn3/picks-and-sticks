@@ -1,10 +1,5 @@
 import type { RequestHandler } from './$types'
-import { sql, eq, aliasedTable, and, or, isNull } from 'drizzle-orm'
-import { db } from '$lib/server/db'
-import { picks, schedules, teams, users } from '$lib/server/models'
-import { getPickPointsForWeek, getAvailableTeams } from '$lib/server/queries'
-
-const draftState: Record<number, { picks: any[], selectedTeams: Set<number> }> = {}
+import { getPickOrderForWeek, getPicksForWeek, getTotalPointsForWeekByUser } from '$lib/server/queries'
 
 export const GET: RequestHandler = async ({ params }) => {
   const week = parseInt(params.week, 10)
@@ -13,21 +8,41 @@ export const GET: RequestHandler = async ({ params }) => {
     return new Response(JSON.stringify({ error: `Invalid week: ${week.toString()}` }), { status: 400 })
   }
 
-  if (!draftState[week]) {
-    draftState[week] = { picks: [], selectedTeams: new Set() }
+  const picksForWeek = getPicksForWeek(week)
+  const totalPoints = getTotalPointsForWeekByUser(week)
+
+  if (picksForWeek.length > 0) {
+    return new Response(
+      JSON.stringify({
+        picks: picksForWeek,
+        totalPoints: totalPoints,
+        week,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json'} }
+    )
   }
 
-  const availableTeams = await getAvailableTeams(week, draftState[week].selectedTeams)
+  // no picks exist for week
+  const pickOrder = getPickOrderForWeek(week)
+  const fullPickOrder = [...pickOrder, ...pickOrder.reverse(), ...pickOrder, ...pickOrder.reverse()]
 
-  const gameUsers = await db.select().from(users).orderBy(users.id)
+  const response = fullPickOrder.map((user, index) => ({
+    userId: user.userId,
+    fullName: user.fullName,
+    teamId: null,
+    team: null,
+    round: index < 5 ? 1 : 2,
+    overallPickOrder: index + 1,
+    week: week,
+    points: null,
+  }))
 
   return new Response(
     JSON.stringify({
-      teams: availableTeams,
-      users: gameUsers,
-      draftPicks: draftState[week].picks,
+      picks: response,
+      totalPoints: totalPoints,
       week,
     }),
-    { status: 200 }
+    { status: 200, headers: { 'Content-Type': 'application/json' } }
   )
 }
