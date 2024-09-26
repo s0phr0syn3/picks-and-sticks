@@ -61,7 +61,7 @@
     </div>
 
     {#if picks.length > 0 && picks[0].teamId}
-    <div class="overflow-x-auto bg-white shadow-lg rounded-lg">
+    <div class="mt-8 overflow-x-auto bg-white shadow-lg rounded-lg">
       <table class="min-w-full table-auto border-collapse">
         <thead class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
           <tr>
