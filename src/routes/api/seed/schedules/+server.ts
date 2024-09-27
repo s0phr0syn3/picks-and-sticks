@@ -23,9 +23,7 @@ export const GET: RequestHandler = async () => {
       await db.insert(schedules).values(game).onConflictDoUpdate({target: schedules.eventId, set: {homeScore: game.homeScore, awayScore: game.awayScore}})
     }
 
-    return successResponse({
-      data: insertData
-    }, 'Schedules retrieved and saved successfully.')
+    return successResponse(insertData, 'Schedules retrieved and saved successfully.')
   } catch (error: any) {
     return failureResponse(error, 'Failed to retrieve or save schedules.')
   }

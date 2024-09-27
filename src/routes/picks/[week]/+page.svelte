@@ -34,9 +34,9 @@
         <thead class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
         <tr>
           <th class="py-3 px-6 text-left">Round</th>
-          <th class="py-3 px-6 text-left">Who</th>
+          <th class="py-3 px-6 text-left">Player</th>
           <th class="py-3 px-6 text-left">Team</th>
-          <th class="py-3 px-6 text-left">Assigned By</th>
+          <th class="py-3 px-6 text-left">Stuck By</th>
           <th class="py-3 px-6 text-left">Points</th>
         </tr>
         </thead>
@@ -53,7 +53,10 @@
           {/each}
         {:else}
           <tr>
-            <td class="text-center py-6" colspan="5">No picks this week. <br /><br />{data.insult}</td>
+            <td class="text-center py-6" colspan="5">
+              <h3 class="text-2xl">No picks this week.</h3>
+              <button class="m-8 btn btn-primary">Start Draft for Week {week}</button>
+            </td>
           </tr>
         {/if}
         </tbody>
@@ -65,7 +68,7 @@
       <table class="min-w-full table-auto border-collapse">
         <thead class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
           <tr>
-            <th class="py-3 px-6 text-left">Who</th>
+            <th class="py-3 px-6 text-left">Player</th>
             <th class="py-3 px-6 text-left">Total Points</th>
           </tr>
         </thead>
