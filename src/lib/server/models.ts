@@ -33,7 +33,7 @@ export const picks = sqliteTable('picks', {
   week: integer('week').notNull(),
   round: integer('round').notNull(),
   userId: integer('user_id').references(() => users.id).notNull(),
-  teamId: integer('team_id').references(() => teams.teamId).notNull(),
+  teamId: integer('team_id').references(() => teams.teamId),
   orderInRound: integer('order_in_round').notNull(),
   assignedById: integer('assigned_by_id').references(() => users.id),
 })

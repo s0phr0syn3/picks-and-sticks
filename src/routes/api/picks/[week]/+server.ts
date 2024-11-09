@@ -15,31 +15,18 @@ export const GET: RequestHandler = async ({ params }) => {
     return new Response(
       JSON.stringify({
         picks: picksForWeek,
-        totalPoints: totalPoints,
+        totalPoints,
         week,
       }),
       { status: 200, headers: { 'Content-Type': 'application/json'} }
     )
   }
 
-  // no picks exist for week
   const pickOrder = getPickOrderForWeek(week)
-  const fullPickOrder = [...pickOrder, ...pickOrder.reverse(), ...pickOrder, ...pickOrder.reverse()]
-
-  const response = fullPickOrder.map((user, index) => ({
-    userId: user.userId,
-    fullName: user.fullName,
-    teamId: null,
-    team: null,
-    round: index < 5 ? 1 : 2,
-    overallPickOrder: index + 1,
-    week: week,
-    points: null,
-  }))
 
   return new Response(
     JSON.stringify({
-      picks: response,
+      draftState: pickOrder,
       totalPoints: totalPoints,
       week,
     }),
