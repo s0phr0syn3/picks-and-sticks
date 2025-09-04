@@ -44,9 +44,11 @@ export const actions: Actions = {
 		try {
 			// Create user
 			const user = await createUser(username, firstName, lastName, password);
+			console.log('User created successfully:', user);
 			
 			// Create session
 			const session = await createSession(user.id);
+			console.log('Session created successfully:', session.id);
 			
 			// Set session cookie
 			cookies.set('session', session.id, {
@@ -56,11 +58,17 @@ export const actions: Actions = {
 				sameSite: 'lax',
 				maxAge: 60 * 60 * 24 * 30 // 30 days
 			});
+			console.log('Cookie set successfully');
 			
 			// Redirect to callback URL
 			throw redirect(302, callbackUrl);
 		} catch (error: any) {
 			console.error('Registration error:', error);
+			
+			// Check if it's a redirect (which is expected)
+			if (error.status === 302) {
+				throw error; // Re-throw redirect errors
+			}
 			
 			// Handle specific database errors
 			if (error.message?.includes('UNIQUE constraint failed: users.username')) {

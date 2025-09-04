@@ -18,7 +18,8 @@
 		event.preventDefault();
 		try {
 			await fetch('/auth/signout', { method: 'POST' });
-			goto('/auth/signin');
+			// Force a full page reload to clear session state
+			window.location.href = '/auth/signin';
 		} catch (error) {
 			console.error('Sign out error:', error);
 			// Fallback to GET request if POST fails
