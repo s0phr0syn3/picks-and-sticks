@@ -15,14 +15,15 @@ export function generateHash(input: string): string {
 
 export function randomSort<T>(arr: Array<T>): Array<T> {
 	// Create a copy of the array to avoid mutating the original array
-	for (let i = arr.length - 1; i > 0; i--) {
+	const shuffled = [...arr];
+	for (let i = shuffled.length - 1; i > 0; i--) {
 		// Generate a random index j such that 0 ≤ j ≤ i
 		const j = Math.floor(Math.random() * (i + 1));
 
-		// Swap array[i] with array[j]
-		[arr[i], arr[j]] = [arr[j], arr[i]];
+		// Swap shuffled[i] with shuffled[j]
+		[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
 	}
-	return arr;
+	return shuffled;
 }
 
 interface Week {

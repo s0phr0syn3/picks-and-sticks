@@ -39,6 +39,9 @@
 						<nav class="hidden md:flex space-x-6 ml-8">
 							<a href="/picks/1" class="text-gray-600 hover:text-gray-800 transition-colors">Picks</a>
 							<a href="/draft/1" class="text-gray-600 hover:text-gray-800 transition-colors">Draft</a>
+							{#if session.user.username === 'ea'}
+								<a href="/admin" class="text-gray-600 hover:text-gray-800 transition-colors">Admin</a>
+							{/if}
 						</nav>
 					</div>
 					
@@ -47,6 +50,9 @@
 							<span class="text-gray-700 font-medium">Welcome, {session.user.name}!</span>
 							<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">@{session.user.username}</span>
 						</div>
+						<a href="/profile" class="text-gray-500 hover:text-gray-700 transition-colors">
+							Profile
+						</a>
 						<button 
 							class="text-gray-500 hover:text-gray-700 transition-colors"
 							on:click={signOut}

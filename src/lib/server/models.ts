@@ -52,3 +52,11 @@ export const picks = sqliteTable('picks', {
 	orderInRound: integer('order_in_round').notNull(),
 	assignedById: text('assigned_by_id').references(() => users.id)
 });
+
+export const weeks = sqliteTable('weeks', {
+	id: integer('id').primaryKey(),
+	weekNumber: integer('week_number').notNull().unique(),
+	punishment: text('punishment'),
+	createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+	updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull()
+});

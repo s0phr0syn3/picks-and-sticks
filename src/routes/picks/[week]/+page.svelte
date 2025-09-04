@@ -93,6 +93,8 @@
 					>
 						Next →
 					</button>
+					<div class="border-l border-gray-300 mx-2 h-6"></div>
+					<a href="/draft/{week}" class="btn btn-primary">View Draft</a>
 				</div>
 			</div>
 		</div>

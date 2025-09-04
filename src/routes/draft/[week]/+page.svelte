@@ -1,19 +1,32 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import type { DraftPageData, DraftPick, AvailableTeam } from '$lib/types';
+	import type { ActionData } from './$types';
 
 	export let data: DraftPageData;
+	export let form: ActionData;
 
 	let draftState: DraftPick[] = data.draftState;
 	let availableTeams: AvailableTeam[] = data.availableTeams;
 	let week: number = data.week;
 	let currentPick = draftState.find((pick) => !pick.teamId);
 	let selectedTeam: AvailableTeam | null = null;
+	
+	// Check if this is a future week with no meaningful draft data
+	let isDraftReady = draftState && draftState.length > 0;
 
 	console.log('Current pick:', currentPick);
 	console.log('Available Teams:', availableTeams);
 
 	function goToPicks(week: number) {
 		window.location.href = `/picks/${week}`;
+	}
+	
+	function changeWeek(direction: number) {
+		const newWeek = week + direction;
+		if (newWeek >= 1 && newWeek <= 18) {
+			window.location.href = `/draft/${newWeek}`;
+		}
 	}
 
 	function selectTeam(team: AvailableTeam) {
@@ -58,21 +71,65 @@
 <main class="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
 	<!-- Header -->
 	<div class="bg-white shadow-md">
-		<div class="container mx-auto px-6 py-4">
+		<div class="container mx-auto px-6 py-6">
 			<div class="flex items-center justify-between">
-				<h1 class="text-3xl font-bold text-gray-800">
-					🏈 Draft Week {week}
-				</h1>
-				<div class="flex space-x-3">
-					<a href="/picks/{week}" class="btn btn-ghost">← Back to Picks</a>
+				<div class="flex items-center space-x-4">
+					<h1 class="text-4xl font-bold text-gray-800">
+						🏈 Week {week} Draft
+					</h1>
+					<span class="text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">
+						2025 Season
+					</span>
+				</div>
+				
+				<!-- Week Navigation -->
+				<div class="flex items-center space-x-3">
+					<button 
+						class="btn btn-ghost {week <= 1 ? 'opacity-50 cursor-not-allowed' : ''}"
+						on:click={() => changeWeek(-1)} 
+						disabled={week <= 1}
+					>
+						← Previous
+					</button>
+					<div class="text-sm text-gray-600 px-3">
+						Week {week} of 18
+					</div>
+					<button 
+						class="btn btn-ghost {week >= 18 ? 'opacity-50 cursor-not-allowed' : ''}"
+						on:click={() => changeWeek(1)}
+						disabled={week >= 18}
+					>
+						Next →
+					</button>
+					<div class="border-l border-gray-300 mx-2 h-6"></div>
+					<a href="/picks/{week}" class="btn btn-primary">View Picks</a>
 				</div>
 			</div>
 		</div>
 	</div>
 
 	<div class="container mx-auto px-6 py-8">
+		<!-- Previous Week Punishment -->
+		{#if data.previousWeekPunishment}
+			<div class="bg-gradient-to-r from-red-500 to-pink-600 text-white p-6 rounded-xl shadow-lg mb-8">
+				<div class="text-center">
+					<div class="text-sm uppercase tracking-wide opacity-90 mb-2">Punishment from Week {week - 1}</div>
+					<div class="text-lg whitespace-pre-wrap">{data.previousWeekPunishment}</div>
+					<p class="text-sm opacity-90 mt-2">Awarded to whoever had the lowest points last week</p>
+				</div>
+			</div>
+		{/if}
+
 		<!-- Current Pick Banner -->
-		{#if currentPick}
+		{#if !isDraftReady}
+			<!-- Future week with no draft order determined yet -->
+			<div class="bg-gradient-to-r from-gray-500 to-gray-600 text-white p-6 rounded-xl shadow-lg mb-8 text-center">
+				<h2 class="text-2xl font-bold">📅 Week {week} Draft</h2>
+				<p class="mt-2 opacity-90">Draft order will be determined after Week {week - 1} completes</p>
+				<p class="text-sm opacity-75 mt-1">Check back when the previous week's results are final</p>
+			</div>
+		{:else if currentPick}
+			<!-- Active draft with current pick -->
 			<div class="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg mb-8">
 				<div class="text-center">
 					<div class="text-sm uppercase tracking-wide opacity-90 mb-2">On the Clock</div>
@@ -88,6 +145,7 @@
 				</div>
 			</div>
 		{:else}
+			<!-- Draft completed -->
 			<div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 rounded-xl shadow-lg mb-8 text-center">
 				<h2 class="text-2xl font-bold">🎉 Draft Complete!</h2>
 				<p class="mt-2 opacity-90">All picks have been made for Week {week}</p>
@@ -97,6 +155,79 @@
 			</div>
 		{/if}
 
+		<!-- Form Messages -->
+		{#if form?.error}
+			<div class="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+				{form.error}
+			</div>
+		{/if}
+
+		{#if form?.success}
+			<div class="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+				{form.message}
+			</div>
+		{/if}
+
+		<!-- Punishment Management -->
+		<div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="text-xl font-semibold text-gray-800">⚡ Week {week} Punishment</h3>
+				<span class="text-sm text-gray-600">For Week {week + 1} Draft</span>
+			</div>
+			
+			<div class="text-sm text-gray-600 mb-4">
+				<p><strong>Note:</strong> This punishment will be shown during Week {week + 1}'s draft and awarded to whoever has the lowest points from Week {week}.</p>
+			</div>
+
+			{#if data.currentWeekPunishment}
+				<div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+					<div class="text-sm font-medium text-yellow-800 mb-1">Current Punishment:</div>
+					<div class="text-yellow-900 whitespace-pre-wrap">{data.currentWeekPunishment}</div>
+				</div>
+			{/if}
+
+			<form method="POST" action="?/updatePunishment" use:enhance class="space-y-4">
+				<div>
+					<label for="punishment" class="block text-sm font-medium text-gray-700 mb-2">
+						{data.currentWeekPunishment ? 'Update' : 'Set'} Punishment:
+					</label>
+					<textarea
+						id="punishment"
+						name="punishment"
+						rows="3"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+						placeholder="Enter the punishment for the player with the lowest points this week..."
+						value={data.currentWeekPunishment}
+					></textarea>
+				</div>
+				<div class="flex items-center space-x-3">
+					<button
+						type="submit"
+						class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+					>
+						{data.currentWeekPunishment ? 'Update' : 'Set'} Punishment
+					</button>
+					{#if data.currentWeekPunishment}
+						<form method="POST" action="?/updatePunishment" use:enhance class="inline">
+							<input type="hidden" name="punishment" value="" />
+							<button
+								type="submit"
+								class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+								on:click={(e) => {
+									if (!confirm('Clear the punishment for this week?')) {
+										e.preventDefault();
+									}
+								}}
+							>
+								Clear Punishment
+							</button>
+						</form>
+					{/if}
+				</div>
+			</form>
+		</div>
+
+		{#if isDraftReady}
 		<div class="grid lg:grid-cols-3 gap-8">
 			<!-- Draft Board -->
 			<div class="lg:col-span-2">
@@ -216,6 +347,7 @@
 				</div>
 			</div>
 		</div>
+		{/if}
 	</div>
 </main>
 

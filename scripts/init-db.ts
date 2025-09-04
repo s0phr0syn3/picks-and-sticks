@@ -6,7 +6,7 @@ import { sql } from 'drizzle-orm';
 import { config } from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
-import { teams, schedules, users, picks, sessions } from '../src/lib/server/models';
+import { teams, schedules, users, picks, sessions, weeks } from '../src/lib/server/models';
 
 // Load environment variables
 config();
@@ -105,6 +105,18 @@ async function initDatabase() {
 			)
 		`);
 		console.log('✅ Created picks table');
+
+		// Create weeks table
+		await db.run(sql`
+			CREATE TABLE IF NOT EXISTS weeks (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				week_number INTEGER NOT NULL UNIQUE,
+				punishment TEXT,
+				created_at INTEGER NOT NULL,
+				updated_at INTEGER NOT NULL
+			)
+		`);
+		console.log('✅ Created weeks table');
 		
 		// Create indexes for better performance
 		console.log('📈 Creating indexes...');

@@ -93,6 +93,7 @@ export const getPicksForWeek = (week: number) => {
 			assignedById: assignedBy.id,
 			assignedByFullName: sql<string>`${assignedBy.firstName} || ' ' || ${assignedBy.lastName} AS fullName`,
 			round: picks.round,
+			orderInRound: picks.orderInRound,
 			overallPickOrder: sql`(5 * ${picks.round}) + ${picks.orderInRound} - 5`,
 			week: picks.week
 		})
