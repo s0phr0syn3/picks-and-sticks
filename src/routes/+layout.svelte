@@ -14,12 +14,15 @@
 		}
 	})
 	
-	async function signOut() {
+	async function signOut(event) {
+		event.preventDefault();
 		try {
 			await fetch('/auth/signout', { method: 'POST' });
 			goto('/auth/signin');
 		} catch (error) {
 			console.error('Sign out error:', error);
+			// Fallback to GET request if POST fails
+			window.location.href = '/auth/signout';
 		}
 	}
 </script>
@@ -53,12 +56,13 @@
 						<a href="/profile" class="text-gray-500 hover:text-gray-700 transition-colors">
 							Profile
 						</a>
-						<button 
+						<a 
+							href="/auth/signout"
 							class="text-gray-500 hover:text-gray-700 transition-colors"
 							on:click={signOut}
 						>
 							Sign Out
-						</button>
+						</a>
 					</div>
 				</div>
 			</div>
