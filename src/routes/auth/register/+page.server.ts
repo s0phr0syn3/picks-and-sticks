@@ -37,11 +37,6 @@ export const actions: Actions = {
 			return fail(400, { error: 'Password must be at least 6 characters' });
 		}
 		
-		// Username validation
-		if (username.length < 3) {
-			return fail(400, { error: 'Username must be at least 3 characters' });
-		}
-		
 		if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
 			return fail(400, { error: 'Username can only contain letters, numbers, hyphens, and underscores' });
 		}
