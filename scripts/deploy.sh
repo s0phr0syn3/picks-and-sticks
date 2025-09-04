@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Deployment script for Picks and Sticks
-# Run this on your Hetzner server to deploy the latest changes
 
 set -e  # Exit on any error
 
@@ -15,9 +14,9 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Configuration
-APP_DIR="/opt/picks-and-sticks"
+APP_DIR="/var/www/picks-and-sticks"
 PM2_APP_NAME="picks-and-sticks"
-REPO_URL="https://github.com/your-username/picks-and-sticks.git"  # Update this with your actual repo URL
+REPO_URL="https://github.com/s0phr0syn3/picks-and-sticks.git"
 
 echo -e "${BLUE}📂 Navigating to application directory...${NC}"
 cd $APP_DIR
