@@ -27,6 +27,9 @@ git pull origin main
 echo -e "${BLUE}📦 Installing/updating dependencies...${NC}"
 npm install
 
+echo -e "${BLUE}🗄️  Initializing production database...${NC}"
+NODE_ENV=production npm run db:init
+
 echo -e "${BLUE}🏗️  Building application...${NC}"
 npm run build
 
@@ -38,7 +41,7 @@ if pm2 list | grep -q "$PM2_APP_NAME"; then
 fi
 
 echo -e "${BLUE}🚀 Starting PM2 with correct script path...${NC}"
-pm2 start .svelte-kit/output/server/index.js --name $PM2_APP_NAME
+NODE_ENV=production pm2 start .svelte-kit/output/server/index.js --name $PM2_APP_NAME
 pm2 save
 
 echo -e "${BLUE}📊 Checking PM2 status...${NC}"
