@@ -60,3 +60,26 @@ export const weeks = sqliteTable('weeks', {
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 	updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull()
 });
+
+export const liveScores = sqliteTable('live_scores', {
+	id: integer('id').primaryKey(),
+	eventId: integer('event_id').notNull().unique(),
+	homeScore: integer('home_score').notNull().default(0),
+	awayScore: integer('away_score').notNull().default(0),
+	quarter: text('quarter'), // '1', '2', '3', '4', 'OT', 'Final'
+	timeRemaining: text('time_remaining'), // '14:32', '00:00', etc.
+	lastUpdated: integer('last_updated', { mode: 'timestamp' }).notNull(),
+	isLive: integer('is_live', { mode: 'boolean' }).notNull().default(false),
+	isComplete: integer('is_complete', { mode: 'boolean' }).notNull().default(false)
+});
+
+export const userWeeklyScores = sqliteTable('user_weekly_scores', {
+	id: integer('id').primaryKey(),
+	userId: text('user_id').notNull().references(() => users.id),
+	week: integer('week').notNull(),
+	currentPoints: integer('current_points').notNull().default(0),
+	projectedPoints: integer('projected_points').notNull().default(0),
+	completedGames: integer('completed_games').notNull().default(0),
+	totalGames: integer('total_games').notNull().default(0),
+	lastUpdated: integer('last_updated', { mode: 'timestamp' }).notNull()
+});

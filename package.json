@@ -46,11 +46,13 @@
 	"type": "module",
 	"dependencies": {
 		"@tailwindcss/typography": "^0.5.16",
+		"@types/node-cron": "^3.0.11",
 		"bcryptjs": "^3.0.2",
 		"better-sqlite3": "^11.10.0",
 		"daisyui": "^4.12.24",
 		"dotenv": "^16.6.1",
-		"drizzle-orm": "^0.33.0",
+		"drizzle-orm": "^0.44.5",
+		"node-cron": "^4.2.1",
 		"svelte-dnd-action": "^0.9.64",
 		"uuid": "^11.1.0"
 	}
