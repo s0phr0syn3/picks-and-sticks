@@ -63,11 +63,15 @@ export class LiveScoringService {
 	 */
 	private async updateAllNFLScores(weekGames: any[]): Promise<void> {
 		try {
-			const apiUrl = `https://www.thesportsdb.com/api/v2/json/${this.apiKey}/livescore/4391`;
+			const apiUrl = `https://www.thesportsdb.com/api/v2/json/livescore/4391`;
 			console.log(`🔍 Fetching all NFL live scores from: ${apiUrl}`);
 			
 			// Fetch all live NFL scores
-			const response = await fetch(apiUrl);
+			const response = await fetch(apiUrl, {
+				headers: {
+					'X-API-KEY': this.apiKey
+				}
+			});
 			
 			if (!response.ok) {
 				console.log(`⚠️  API response not ok: ${response.status} ${response.statusText}`);
@@ -217,10 +221,14 @@ export class LiveScoringService {
 						homeScore = existingScore[0].homeScore;
 						awayScore = existingScore[0].awayScore;
 					} else {
-						// Try fetching from API (try different endpoint format)
+						// Try fetching from API (using V2 endpoint)
 						try {
-							const eventUrl = `https://www.thesportsdb.com/api/v1/json/1/lookupevent.php?id=${game.eventId}`;
-							const response = await fetch(eventUrl);
+							const eventUrl = `https://www.thesportsdb.com/api/v2/json/lookupevent/${game.eventId}`;
+							const response = await fetch(eventUrl, {
+								headers: {
+									'X-API-KEY': this.apiKey
+								}
+							});
 							
 							if (response.ok) {
 								const data = await response.json();
