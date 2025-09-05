@@ -17,6 +17,7 @@
 		isLive: boolean;
 		isComplete: boolean;
 		lastUpdated: string;
+		gameDate: string;
 	}
 
 	let games: GameStatus[] = [];
@@ -56,12 +57,39 @@
 		} else if (game.isLive) {
 			const quarter = game.quarter || '';
 			const time = game.timeRemaining || '';
+			// Format quarter display (Q1, Q2, etc.) and time
+			let status = '';
+			if (quarter && time) {
+				// If quarter is like "2nd Quarter", convert to "Q2"
+				const qMatch = quarter.match(/(\d)(st|nd|rd|th)/i);
+				if (qMatch) {
+					status = `Q${qMatch[1]} ${time}`;
+				} else {
+					status = `${quarter} ${time}`;
+				}
+			} else if (quarter) {
+				status = quarter;
+			} else {
+				status = 'In Progress';
+			}
 			return { 
-				status: time ? `${quarter} ${time}` : quarter,
+				status,
 				class: 'text-red-600 font-bold animate-pulse'
 			};
 		} else {
-			return { status: 'Not Started', class: 'text-gray-500' };
+			// Game hasn't started - show date and time in Pacific timezone
+			const gameDate = new Date(game.gameDate);
+			const options: Intl.DateTimeFormatOptions = {
+				weekday: 'short',
+				month: 'short',
+				day: 'numeric',
+				hour: 'numeric',
+				minute: '2-digit',
+				hour12: true,
+				timeZone: 'America/Los_Angeles'
+			};
+			const formattedDate = gameDate.toLocaleString('en-US', options);
+			return { status: `${formattedDate} PT`, class: 'text-gray-500' };
 		}
 	}
 
@@ -138,10 +166,21 @@
 					{@const gameStatus = getGameStatus(game)}
 					<div class="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
 						<!-- Game Status -->
-						<div class="text-center mb-4">
-							<span class="text-sm {gameStatus.class}">
-								{gameStatus.status}
-							</span>
+						<div class="text-center mb-4 min-h-[2rem]">
+							{#if game.isLive}
+								<span class="inline-flex items-center space-x-1 text-sm {gameStatus.class}">
+									<span class="inline-block w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
+									<span>{gameStatus.status}</span>
+								</span>
+							{:else if game.isComplete}
+								<span class="text-sm {gameStatus.class}">
+									✓ {gameStatus.status}
+								</span>
+							{:else}
+								<span class="text-xs {gameStatus.class}">
+									🕐 {gameStatus.status}
+								</span>
+							{/if}
 						</div>
 
 						<!-- Teams and Scores -->

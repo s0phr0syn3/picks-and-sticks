@@ -171,5 +171,53 @@ export const actions: Actions = {
 		}
 		
 		redirect(302, `/admin/draft-order?week=${week}&reordered=true`);
+	},
+
+	setPlayerOrder: async ({ request }) => {
+		const data = await request.formData();
+		const week = parseInt(data.get('week') as string);
+		const playerOrderJson = data.get('playerOrder') as string;
+		
+		if (!week || week < 1 || week > 18 || !playerOrderJson) {
+			return fail(400, { error: 'Invalid data provided' });
+		}
+		
+		try {
+			const playerOrder = JSON.parse(playerOrderJson);
+			
+			// Validate the player order
+			if (!Array.isArray(playerOrder) || playerOrder.length !== 5) {
+				return fail(400, { error: 'Invalid player order - must have exactly 5 players' });
+			}
+			
+			// Verify all users exist and have unique IDs
+			const userIds = playerOrder.map(p => p.userId);
+			if (new Set(userIds).size !== 5) {
+				return fail(400, { error: 'All players must be unique' });
+			}
+			
+			// Generate full draft order using the snake pattern
+			const fullDraftOrder = buildFullPickOrder(playerOrder);
+			
+			// Delete existing picks for this week
+			await db.delete(picks).where(eq(picks.week, week));
+			
+			// Insert new picks using the proper snake order and stuck-by assignments
+			for (const pick of fullDraftOrder) {
+				await db.insert(picks).values({
+					week,
+					round: pick.round,
+					userId: pick.userId,
+					orderInRound: pick.orderInRound,
+					assignedById: pick.assignedById,
+					teamId: null
+				});
+			}
+		} catch (error) {
+			console.error('Error setting player order:', error);
+			return fail(500, { error: 'Failed to set player order' });
+		}
+		
+		redirect(302, `/admin/draft-order?week=${week}&playerorder=true`);
 	}
 };

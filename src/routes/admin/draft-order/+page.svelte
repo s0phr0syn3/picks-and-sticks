@@ -10,13 +10,16 @@
 	let selectedWeek = data.selectedWeek;
 	let draftOrder = [...data.draftOrder];
 	let isReordering = false;
+	let isSettingPlayerOrder = false;
 	let draggedIndex: number | null = null;
+	let playerOrder = [...data.users];
 	
 	// Update local state when data changes (after redirects), but not during reordering
 	$: {
 		selectedWeek = data.selectedWeek;
-		if (!isReordering) {
+		if (!isReordering && !isSettingPlayerOrder) {
 			draftOrder = [...data.draftOrder];
+			playerOrder = [...data.users];
 		}
 	}
 	
@@ -28,6 +31,8 @@
 			successMessage = `Draft order generated for Week ${selectedWeek}`;
 		} else if (urlParams.get('reordered') === 'true') {
 			successMessage = `Draft order updated for Week ${selectedWeek}`;
+		} else if (urlParams.get('playerorder') === 'true') {
+			successMessage = `Player order set for Week ${selectedWeek}`;
 		} else {
 			successMessage = '';
 		}
@@ -44,6 +49,20 @@
 	function cancelReordering() {
 		isReordering = false;
 		draftOrder = [...data.draftOrder];
+	}
+
+	function startPlayerOrdering() {
+		isSettingPlayerOrder = true;
+		// Initialize player order based on current round 1 picks
+		const round1Picks = draftOrder.filter(pick => pick.round === 1).sort((a, b) => a.orderInRound - b.orderInRound);
+		if (round1Picks.length === 5) {
+			playerOrder = round1Picks.map(pick => data.users.find(user => user.id === pick.userId)).filter(Boolean);
+		}
+	}
+
+	function cancelPlayerOrdering() {
+		isSettingPlayerOrder = false;
+		playerOrder = [...data.users];
 	}
 	
 	function moveUp(index: number) {
@@ -93,6 +112,49 @@
 		const form = document.getElementById('reorderForm') as HTMLFormElement;
 		const newOrderInput = document.getElementById('newOrderInput') as HTMLInputElement;
 		newOrderInput.value = JSON.stringify(draftOrder);
+		form.submit();
+	}
+
+	function movePlayerUp(index: number) {
+		if (index > 0) {
+			const newOrder = [...playerOrder];
+			[newOrder[index], newOrder[index - 1]] = [newOrder[index - 1], newOrder[index]];
+			playerOrder = newOrder;
+		}
+	}
+
+	function movePlayerDown(index: number) {
+		if (index < playerOrder.length - 1) {
+			const newOrder = [...playerOrder];
+			[newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+			playerOrder = newOrder;
+		}
+	}
+
+	function handlePlayerDragStart(event: DragEvent, index: number) {
+		draggedIndex = index;
+		if (event.dataTransfer) {
+			event.dataTransfer.effectAllowed = 'move';
+			event.dataTransfer.setData('text/html', '');
+		}
+	}
+
+	function handlePlayerDrop(event: DragEvent, dropIndex: number) {
+		event.preventDefault();
+		if (draggedIndex !== null && draggedIndex !== dropIndex) {
+			const newOrder = [...playerOrder];
+			const draggedItem = newOrder[draggedIndex];
+			newOrder.splice(draggedIndex, 1);
+			newOrder.splice(dropIndex, 0, draggedItem);
+			playerOrder = newOrder;
+		}
+		draggedIndex = null;
+	}
+
+	function savePlayerOrder() {
+		const form = document.getElementById('playerOrderForm') as HTMLFormElement;
+		const playerOrderInput = document.getElementById('playerOrderInput') as HTMLInputElement;
+		playerOrderInput.value = JSON.stringify(playerOrder);
 		form.submit();
 	}
 	
@@ -156,7 +218,7 @@
 					</p>
 				</div>
 				<div class="flex space-x-3">
-					{#if !isReordering}
+					{#if !isReordering && !isSettingPlayerOrder}
 						<form method="POST" action="?/generateDraftOrder" use:enhance class="inline">
 							<input type="hidden" name="week" value={selectedWeek} />
 							<button
@@ -173,13 +235,13 @@
 						</form>
 						{#if data.weekExists}
 							<button
-								on:click={startReordering}
+								on:click={startPlayerOrdering}
 								class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
 							>
-								Manual Reorder
+								Set Player Order
 							</button>
 						{/if}
-					{:else}
+					{:else if isReordering}
 						<button
 							on:click={saveNewOrder}
 							class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
@@ -188,6 +250,19 @@
 						</button>
 						<button
 							on:click={cancelReordering}
+							class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+						>
+							Cancel
+						</button>
+					{:else if isSettingPlayerOrder}
+						<button
+							on:click={savePlayerOrder}
+							class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+						>
+							Apply Player Order
+						</button>
+						<button
+							on:click={cancelPlayerOrdering}
 							class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
 						>
 							Cancel
@@ -202,6 +277,12 @@
 			<input type="hidden" name="week" value={selectedWeek} />
 			<input id="newOrderInput" type="hidden" name="newOrder" value="" />
 		</form>
+
+		<!-- Hidden form for player ordering -->
+		<form id="playerOrderForm" method="POST" action="?/setPlayerOrder" style="display: none;" use:enhance>
+			<input type="hidden" name="week" value={selectedWeek} />
+			<input id="playerOrderInput" type="hidden" name="playerOrder" value="" />
+		</form>
 		
 		{#if isReordering}
 			<div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -210,9 +291,54 @@
 					The overall pick number will update automatically based on position.
 				</p>
 			</div>
+		{:else if isSettingPlayerOrder}
+			<div class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+				<p class="text-green-800 text-sm mb-4">
+					<strong>Set Player Order:</strong> Arrange the 5 players in the order they should pick in Round 1. 
+					This will generate the proper snake draft order with correct "stuck by" assignments for rounds 3 and 4.
+				</p>
+				
+				<!-- Player Order Interface -->
+				<div class="bg-white rounded-lg p-4">
+					<h4 class="font-semibold text-gray-800 mb-3">Player Draft Order (1-5)</h4>
+					<div class="space-y-2">
+						{#each playerOrder as player, index}
+							<div
+								class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border cursor-move"
+								draggable={true}
+								on:dragstart={(e) => handlePlayerDragStart(e, index)}
+								on:dragover={handleDragOver}
+								on:drop={(e) => handlePlayerDrop(e, index)}
+							>
+								<div class="flex items-center space-x-3">
+									<span class="font-bold text-lg text-blue-600">#{index + 1}</span>
+									<span class="font-medium text-gray-900">{player.fullName}</span>
+								</div>
+								<div class="flex space-x-1">
+									<button
+										on:click={() => movePlayerUp(index)}
+										disabled={index === 0}
+										class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+									>
+										↑
+									</button>
+									<button
+										on:click={() => movePlayerDown(index)}
+										disabled={index === playerOrder.length - 1}
+										class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+									>
+										↓
+									</button>
+								</div>
+							</div>
+						{/each}
+					</div>
+				</div>
+			</div>
 		{/if}
 		
 		<!-- Draft Order Table -->
+		{#if !isSettingPlayerOrder}
 		<div class="overflow-x-auto">
 			<table class="w-full table-auto">
 				<thead>
@@ -274,6 +400,7 @@
 				</tbody>
 			</table>
 		</div>
+		{/if}
 		
 		<div class="mt-6 text-gray-600">
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -289,7 +416,7 @@
 					<h4 class="font-semibold text-gray-800 mb-2">Actions:</h4>
 					<ul class="space-y-1">
 						<li>• <strong>Generate Order:</strong> Creates/recreates order based on system rules</li>
-						<li>• <strong>Manual Reorder:</strong> Drag and drop or use arrows to customize order</li>
+						<li>• <strong>Set Player Order:</strong> Manually set player positions (1-5) with proper snake draft</li>
 						<li>• Week 1 uses random order since no previous scores exist</li>
 					</ul>
 				</div>
