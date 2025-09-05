@@ -41,7 +41,7 @@ if pm2 list | grep -q "$PM2_APP_NAME"; then
 fi
 
 echo -e "${BLUE}🚀 Starting PM2 with correct script path...${NC}"
-NODE_ENV=production pm2 start .svelte-kit/output/server/index.js --name $PM2_APP_NAME
+NODE_ENV=production pm2 start build/index.js --name $PM2_APP_NAME
 pm2 save
 
 echo -e "${BLUE}📊 Checking PM2 status...${NC}"

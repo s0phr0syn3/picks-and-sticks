@@ -54,22 +54,22 @@ export class LiveScoreScheduler {
 	 */
 	private checkIfGameDay(): void {
 		const now = new Date();
-		const day = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
 		const hour = now.getHours();
 		
-		// Game days: Thursday (4), Sunday (0), Monday (1)
-		// Active hours: 10 AM - 1 AM next day
-		const isGameDayOfWeek = day === 0 || day === 1 || day === 4;
-		const isGameHours = hour >= 10 || hour <= 1;
+		// Check every day from 9 AM to 2 AM next day (covers all possible game times)
+		// This accounts for games on any day of the week
+		const isGameHours = hour >= 9 || hour <= 2;
 		
-		this.isGameDay = isGameDayOfWeek && isGameHours;
+		// Always consider it a potential game day during active hours
+		// API limit: 100/min, we'll use ~1-2 per minute during active hours
+		this.isGameDay = isGameHours;
 		
-		console.log(`🗓️  Game day check: Day=${day}, Hour=${hour}, IsGameDayOfWeek=${isGameDayOfWeek}, IsGameHours=${isGameHours}, IsGameDay=${this.isGameDay}`);
+		console.log(`🗓️  Game day check: Hour=${hour}, IsGameHours=${isGameHours}, IsGameDay=${this.isGameDay}`);
 		
 		if (this.isGameDay && !this.wasGameDay) {
-			console.log('🏈 Game day activated! Starting frequent updates...');
+			console.log('🏈 Active hours! Starting live score monitoring...');
 		} else if (!this.isGameDay && this.wasGameDay) {
-			console.log('😴 Game day ended. Reducing update frequency...');
+			console.log('😴 Off hours. Reducing update frequency...');
 		}
 		
 		this.wasGameDay = this.isGameDay;

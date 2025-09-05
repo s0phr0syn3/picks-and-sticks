@@ -31,6 +31,33 @@
 	$: if (form?.success) {
 		cancelEdit();
 	}
+	
+	// Live scores management
+	let liveScoreLoading = false;
+	let liveScoreMessage = '';
+	
+	async function triggerLiveScoreUpdate() {
+		liveScoreLoading = true;
+		liveScoreMessage = '';
+		
+		try {
+			const response = await fetch('/api/live-scores/trigger-now', {
+				method: 'POST'
+			});
+			
+			const result = await response.json();
+			
+			if (result.success) {
+				liveScoreMessage = `✅ ${result.message}`;
+			} else {
+				liveScoreMessage = `❌ ${result.error}`;
+			}
+		} catch (error) {
+			liveScoreMessage = '❌ Failed to trigger live score update';
+		} finally {
+			liveScoreLoading = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -46,7 +73,7 @@
 		<!-- Quick Links -->
 		<div class="mb-8">
 			<h2 class="text-xl font-semibold text-gray-700 mb-4">Management</h2>
-			<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+			<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
 				<a href="/admin/weeks" class="block p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
 					<h3 class="font-semibold text-blue-800">Week Management</h3>
 					<p class="text-sm text-blue-600">Manage punishments and reset week picks</p>
@@ -58,6 +85,19 @@
 				<div class="block p-4 bg-gray-50 rounded-lg">
 					<h3 class="font-semibold text-gray-800">User Management</h3>
 					<p class="text-sm text-gray-600">Edit users and reset passwords (below)</p>
+				</div>
+				<div class="block p-4 bg-orange-50 rounded-lg">
+					<h3 class="font-semibold text-orange-800 mb-2">Live Scores</h3>
+					<button 
+						class="btn btn-sm btn-orange w-full {liveScoreLoading ? 'loading' : ''}" 
+						on:click={triggerLiveScoreUpdate}
+						disabled={liveScoreLoading}
+					>
+						{liveScoreLoading ? 'Updating...' : '🔄 Update Now'}
+					</button>
+					{#if liveScoreMessage}
+						<p class="text-xs mt-2 {liveScoreMessage.startsWith('✅') ? 'text-green-600' : 'text-red-600'}">{liveScoreMessage}</p>
+					{/if}
 				</div>
 			</div>
 		</div>
@@ -198,3 +238,21 @@
 		</div>
 	</div>
 </main>
+
+<style>
+	.btn {
+		@apply px-3 py-2 rounded font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+	}
+	
+	.btn-sm {
+		@apply px-2 py-1 text-sm;
+	}
+	
+	.btn-orange {
+		@apply bg-orange-600 text-white hover:bg-orange-700 focus:ring-orange-500;
+	}
+	
+	.btn:disabled {
+		@apply opacity-50 cursor-not-allowed;
+	}
+</style>
