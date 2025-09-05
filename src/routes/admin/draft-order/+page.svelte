@@ -53,10 +53,20 @@
 
 	function startPlayerOrdering() {
 		isSettingPlayerOrder = true;
-		// Initialize player order based on current round 1 picks
+		// Initialize player order based on current round 1 picks if they exist
 		const round1Picks = draftOrder.filter(pick => pick.round === 1).sort((a, b) => a.orderInRound - b.orderInRound);
 		if (round1Picks.length === 5) {
-			playerOrder = round1Picks.map(pick => data.users.find(user => user.id === pick.userId)).filter(Boolean);
+			const mappedUsers = round1Picks.map(pick => data.users.find(user => user.id === pick.userId)).filter(Boolean);
+			// Only use the mapped order if we found all 5 users
+			if (mappedUsers.length === 5) {
+				playerOrder = mappedUsers;
+			} else {
+				// Fallback to first 5 users if mapping failed
+				playerOrder = data.users.slice(0, 5);
+			}
+		} else {
+			// Default to first 5 users if no existing draft order
+			playerOrder = data.users.slice(0, 5);
 		}
 	}
 

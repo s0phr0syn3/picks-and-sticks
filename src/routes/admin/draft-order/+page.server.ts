@@ -191,13 +191,19 @@ export const actions: Actions = {
 			}
 			
 			// Verify all users exist and have unique IDs
-			const userIds = playerOrder.map(p => p.userId);
+			const userIds = playerOrder.map(p => p.id || p.userId);
 			if (new Set(userIds).size !== 5) {
 				return fail(400, { error: 'All players must be unique' });
 			}
 			
+			// Map to expected format for buildFullPickOrder
+			const formattedPlayerOrder = playerOrder.map(p => ({
+				userId: p.id || p.userId,
+				fullName: p.fullName
+			}));
+			
 			// Generate full draft order using the snake pattern
-			const fullDraftOrder = buildFullPickOrder(playerOrder);
+			const fullDraftOrder = buildFullPickOrder(formattedPlayerOrder);
 			
 			// Delete existing picks for this week
 			await db.delete(picks).where(eq(picks.week, week));

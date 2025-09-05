@@ -33,7 +33,8 @@ export class LiveScoringService {
 					homeTeamId: schedules.homeTeamId,
 					awayTeamId: schedules.awayTeamId,
 					homeTeamName: sql<string>`(SELECT name FROM teams WHERE team_id = ${schedules.homeTeamId})`,
-					awayTeamName: sql<string>`(SELECT name FROM teams WHERE team_id = ${schedules.awayTeamId})`
+					awayTeamName: sql<string>`(SELECT name FROM teams WHERE team_id = ${schedules.awayTeamId})`,
+					gameDate: schedules.gameDate
 				})
 				.from(schedules)
 				.where(eq(schedules.week, week));
@@ -42,6 +43,9 @@ export class LiveScoringService {
 
 			// Fetch all live scores for NFL at once
 			await this.updateAllNFLScores(weekGames);
+
+			// Also fetch historical scores for completed games
+			await this.updateHistoricalScores(weekGames);
 
 			// Recalculate user scores for the week
 			await this.updateUserWeeklyScores(week);
@@ -167,6 +171,97 @@ export class LiveScoringService {
 			
 		} catch (error) {
 			console.error('Error updating NFL live scores:', error);
+		}
+	}
+
+	/**
+	 * Fetch historical scores for completed games using the events endpoint
+	 */
+	private async updateHistoricalScores(weekGames: any[]): Promise<void> {
+		try {
+			console.log(`📜 Fetching historical scores for completed games...`);
+			
+			// Check each game individually for final scores
+			for (const game of weekGames) {
+				try {
+					// Check if game should be complete based on date (e.g., game was yesterday or earlier)
+					const gameDate = new Date(game.gameDate);
+					const now = new Date();
+					const hoursSinceGame = (now.getTime() - gameDate.getTime()) / (1000 * 60 * 60);
+					
+					// Only check for final scores if the game started at least 4 hours ago
+					if (hoursSinceGame < 4) {
+						continue;
+					}
+
+					// Use the event details endpoint to get final score
+					const eventUrl = `https://www.thesportsdb.com/api/v2/json/${this.apiKey}/lookupevent/${game.eventId}`;
+					const response = await fetch(eventUrl);
+					
+					if (!response.ok) {
+						console.log(`⚠️  Could not fetch event ${game.eventId}: ${response.status}`);
+						continue;
+					}
+					
+					const data = await response.json();
+					const event = data.event?.[0];
+					
+					if (!event) {
+						continue;
+					}
+					
+					// Check if game has a final score
+					const homeScore = parseInt(event.intHomeScore || '0');
+					const awayScore = parseInt(event.intAwayScore || '0');
+					const hasScore = homeScore > 0 || awayScore > 0;
+					
+					if (hasScore) {
+						// Update the score as final
+						await db
+							.insert(liveScores)
+							.values({
+								eventId: game.eventId,
+								homeScore,
+								awayScore,
+								quarter: 'Final',
+								timeRemaining: null,
+								lastUpdated: new Date(),
+								isLive: false,
+								isComplete: true
+							})
+							.onConflictDoUpdate({
+								target: liveScores.eventId,
+								set: {
+									homeScore,
+									awayScore,
+									quarter: 'Final',
+									timeRemaining: null,
+									lastUpdated: new Date(),
+									isLive: false,
+									isComplete: true
+								}
+							});
+						
+						const matchup = game.homeTeamName && game.awayTeamName ? 
+							`${game.awayTeamName} @ ${game.homeTeamName}` : `Game ${game.eventId}`;
+						console.log(`  📝 Historical: ${matchup}: ${awayScore}-${homeScore} | Final`);
+						
+						// Also update the schedules table with final scores
+						await db
+							.update(schedules)
+							.set({
+								homeScore,
+								awayScore
+							})
+							.where(eq(schedules.eventId, game.eventId));
+					}
+				} catch (eventError) {
+					console.log(`⚠️  Error fetching historical score for event ${game.eventId}:`, eventError);
+				}
+			}
+			
+		} catch (error) {
+			console.error('Error updating historical scores:', error);
 		}
 	}
 
