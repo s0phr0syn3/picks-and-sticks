@@ -31,7 +31,15 @@ echo -e "${BLUE}🏗️  Building application...${NC}"
 npm run build
 
 echo -e "${BLUE}🔄 Restarting PM2 service...${NC}"
-pm2 restart $PM2_APP_NAME
+# Check if PM2 process exists and update the script path if needed
+if pm2 list | grep -q "$PM2_APP_NAME"; then
+    echo -e "${YELLOW}⚠️  Deleting existing PM2 process to update script path...${NC}"
+    pm2 delete $PM2_APP_NAME
+fi
+
+echo -e "${BLUE}🚀 Starting PM2 with correct script path...${NC}"
+pm2 start .svelte-kit/output/server/index.js --name $PM2_APP_NAME
+pm2 save
 
 echo -e "${BLUE}📊 Checking PM2 status...${NC}"
 pm2 status $PM2_APP_NAME
