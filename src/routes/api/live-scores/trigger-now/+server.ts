@@ -1,9 +1,17 @@
 import { json } from '@sveltejs/kit';
-import { liveScoringService } from '$lib/server/live-scoring';
+import { LiveScoringService } from '$lib/server/live-scoring';
+import { API_KEY } from '$env/static/private';
 
 export async function POST() {
 	try {
 		console.log('🔥 Manual live score update triggered');
+		
+		if (!API_KEY) {
+			throw new Error('API_KEY not configured');
+		}
+		
+		// Create service instance
+		const liveScoringService = new LiveScoringService(API_KEY);
 		
 		// Get current NFL week
 		const currentWeek = liveScoringService.getCurrentNFLWeek();
