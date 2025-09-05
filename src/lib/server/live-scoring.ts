@@ -194,25 +194,54 @@ export class LiveScoringService {
 						continue;
 					}
 
-					// Use the event details endpoint to get final score
-					const eventUrl = `https://www.thesportsdb.com/api/v2/json/${this.apiKey}/lookupevent/${game.eventId}`;
-					const response = await fetch(eventUrl);
+					// Check if game already has scores in our system that should be marked final
+					const existingScore = await db
+						.select({
+							homeScore: liveScores.homeScore,
+							awayScore: liveScores.awayScore,
+							isComplete: liveScores.isComplete
+						})
+						.from(liveScores)
+						.where(eq(liveScores.eventId, game.eventId))
+						.limit(1);
 					
-					if (!response.ok) {
-						console.log(`⚠️  Could not fetch event ${game.eventId}: ${response.status}`);
-						continue;
+					// If we already have scores and the game should be finished, mark it as final
+					const hasExistingScore = existingScore.length > 0 && 
+						(existingScore[0].homeScore > 0 || existingScore[0].awayScore > 0);
+					
+					let homeScore = 0;
+					let awayScore = 0;
+					
+					if (hasExistingScore) {
+						// Use existing scores and mark as final
+						homeScore = existingScore[0].homeScore;
+						awayScore = existingScore[0].awayScore;
+					} else {
+						// Try fetching from API (try different endpoint format)
+						try {
+							const eventUrl = `https://www.thesportsdb.com/api/v1/json/1/lookupevent.php?id=${game.eventId}`;
+							const response = await fetch(eventUrl);
+							
+							if (response.ok) {
+								const data = await response.json();
+								const event = data.events?.[0];
+								
+								if (event) {
+									homeScore = parseInt(event.intHomeScore || '0');
+									awayScore = parseInt(event.intAwayScore || '0');
+								}
+							}
+						} catch (apiError) {
+							console.log(`⚠️  API fetch failed for event ${game.eventId}, using existing scores`);
+						}
+						
+						// If API didn't work but we have existing scores, use them
+						if ((homeScore === 0 && awayScore === 0) && hasExistingScore) {
+							homeScore = existingScore[0].homeScore;
+							awayScore = existingScore[0].awayScore;
+						}
 					}
 					
-					const data = await response.json();
-					const event = data.event?.[0];
-					
-					if (!event) {
-						continue;
-					}
-					
-					// Check if game has a final score
-					const homeScore = parseInt(event.intHomeScore || '0');
-					const awayScore = parseInt(event.intAwayScore || '0');
 					const hasScore = homeScore > 0 || awayScore > 0;
 					
 					if (hasScore) {
