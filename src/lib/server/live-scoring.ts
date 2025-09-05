@@ -256,28 +256,45 @@ export class LiveScoringService {
 				}
 			}
 
-			// Update user's weekly score
-			await db
-				.insert(userWeeklyScores)
-				.values({
-					userId,
-					week,
-					currentPoints,
-					projectedPoints: currentPoints, // Could add projection logic later
-					completedGames,
-					totalGames,
-					lastUpdated: new Date()
-				})
-				.onConflictDoUpdate({
-					target: [userWeeklyScores.userId, userWeeklyScores.week],
-					set: {
+			// Update user's weekly score (check if exists first, then insert or update)
+			const existingScore = await db
+				.select()
+				.from(userWeeklyScores)
+				.where(and(
+					eq(userWeeklyScores.userId, userId),
+					eq(userWeeklyScores.week, week)
+				))
+				.limit(1);
+
+			if (existingScore.length > 0) {
+				// Update existing record
+				await db
+					.update(userWeeklyScores)
+					.set({
 						currentPoints,
 						projectedPoints: currentPoints,
 						completedGames,
 						totalGames,
 						lastUpdated: new Date()
-					}
-				});
+					})
+					.where(and(
+						eq(userWeeklyScores.userId, userId),
+						eq(userWeeklyScores.week, week)
+					));
+			} else {
+				// Insert new record
+				await db
+					.insert(userWeeklyScores)
+					.values({
+						userId,
+						week,
+						currentPoints,
+						projectedPoints: currentPoints,
+						completedGames,
+						totalGames,
+						lastUpdated: new Date()
+					});
+			}
 				
 		} catch (error) {
 			console.error(`Error calculating score for user ${userId}:`, error);
