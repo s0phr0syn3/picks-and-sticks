@@ -43,6 +43,12 @@
 						<nav class="hidden md:flex space-x-6 ml-8">
 							<a href="/picks/1" class="text-gray-600 hover:text-gray-800 transition-colors">Picks</a>
 							<a href="/draft/1" class="text-gray-600 hover:text-gray-800 transition-colors">Draft</a>
+							<a href="/scoreboard/1" class="text-gray-600 hover:text-gray-800 transition-colors">
+								<span class="flex items-center space-x-1">
+									<span>📊</span>
+									<span>Scoreboard</span>
+								</span>
+							</a>
 							{#if session.user.username === 'ea'}
 								<a href="/admin" class="text-gray-600 hover:text-gray-800 transition-colors">Admin</a>
 							{/if}

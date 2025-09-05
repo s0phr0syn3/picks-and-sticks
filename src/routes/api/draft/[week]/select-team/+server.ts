@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { picks } from '$lib/server/models';
-import { eq } from 'drizzle-orm';
-import { getAvailableTeams, getPicksForWeek } from '$lib/server/queries';
+import { picks, schedules, liveScores } from '$lib/server/models';
+import { eq, and, or } from 'drizzle-orm';
+import { getAvailableTeams, getPicksForWeek, getAllTeamsForWeek } from '$lib/server/queries';
 
 interface Pick {
 	teamId: number | null;
@@ -23,12 +23,13 @@ export const GET: RequestHandler = async ({ params }) => {
 				.map((pick) => pick.teamId)
 		);
 
-		const availableTeams = getAvailableTeams(week, selectedTeams);
+		const { availableTeams, unavailableTeams } = getAllTeamsForWeek(week, selectedTeams);
 
 		return new Response(
 			JSON.stringify({
 				draftState,
 				availableTeams,
+				unavailableTeams,
 				week
 			}),
 			{ status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -54,6 +55,44 @@ export const POST: RequestHandler = async ({ params, request }) => {
 	}
 
 	try {
+		// Check if the team's game has already started
+		const teamGame = await db
+			.select({
+				eventId: schedules.eventId,
+				gameDate: schedules.gameDate,
+				homeTeamId: schedules.homeTeamId,
+				awayTeamId: schedules.awayTeamId,
+				isLive: liveScores.isLive,
+				isComplete: liveScores.isComplete
+			})
+			.from(schedules)
+			.leftJoin(liveScores, eq(schedules.eventId, liveScores.eventId))
+			.where(and(
+				eq(schedules.week, week),
+				or(
+					eq(schedules.homeTeamId, teamId),
+					eq(schedules.awayTeamId, teamId)
+				)
+			))
+			.get();
+
+		if (teamGame) {
+			const gameStartTime = new Date(teamGame.gameDate);
+			const currentTime = new Date();
+			const gameHasStarted = currentTime >= gameStartTime;
+			const gameIsLiveOrComplete = teamGame.isLive || teamGame.isComplete;
+
+			if (gameHasStarted || gameIsLiveOrComplete) {
+				console.log(`Draft blocked: Team ${teamId} game has started or is live/complete`);
+				return new Response(
+					JSON.stringify({ 
+						error: `Cannot draft this team - their game has already started or is in progress` 
+					}), 
+					{ status: 400 }
+				);
+			}
+		}
+
 		await db
 			.update(picks)
 			.set({
@@ -70,17 +109,18 @@ export const POST: RequestHandler = async ({ params, request }) => {
 				.map((pick) => pick.teamId)
 		);
 
-		const availableTeams = getAvailableTeams(week, selectedTeams);
+		const { availableTeams, unavailableTeams } = getAllTeamsForWeek(week, selectedTeams);
 
 		return new Response(
 			JSON.stringify({
 				draftState: draftState,
 				availableTeams: availableTeams,
+				unavailableTeams: unavailableTeams,
 				week: week
 			}),
 			{ status: 200, headers: { 'Content-Type': 'application/json' } }
 		);
 	} catch (error) {
-		return new Response(JSON.stringify({ error: `Failed to select team` }), { status: 500 });
+		return new Response(JSON.stringify({ error: `Failed to select team: ${error instanceof Error ? error.message : String(error)}` }), { status: 500 });
 	}
 };

@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text, real, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, integer, text, real, primaryKey, unique } from 'drizzle-orm/sqlite-core';
 
 export const teams = sqliteTable('teams', {
 	id: integer('id').primaryKey(),
@@ -82,4 +82,6 @@ export const userWeeklyScores = sqliteTable('user_weekly_scores', {
 	completedGames: integer('completed_games').notNull().default(0),
 	totalGames: integer('total_games').notNull().default(0),
 	lastUpdated: integer('last_updated', { mode: 'timestamp' }).notNull()
-});
+}, (table) => ({
+	userWeekUnique: unique().on(table.userId, table.week)
+}));

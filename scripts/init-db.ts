@@ -118,6 +118,37 @@ async function initDatabase() {
 		`);
 		console.log('✅ Created weeks table');
 		
+		// Create live_scores table
+		await db.run(sql`
+			CREATE TABLE IF NOT EXISTS live_scores (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				event_id INTEGER NOT NULL UNIQUE,
+				home_score INTEGER DEFAULT 0 NOT NULL,
+				away_score INTEGER DEFAULT 0 NOT NULL,
+				quarter TEXT,
+				time_remaining TEXT,
+				last_updated INTEGER NOT NULL,
+				is_live INTEGER DEFAULT 0 NOT NULL,
+				is_complete INTEGER DEFAULT 0 NOT NULL
+			)
+		`);
+		console.log('✅ Created live_scores table');
+		
+		// Create user_weekly_scores table
+		await db.run(sql`
+			CREATE TABLE IF NOT EXISTS user_weekly_scores (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				user_id TEXT NOT NULL REFERENCES users(id),
+				week INTEGER NOT NULL,
+				current_points INTEGER DEFAULT 0 NOT NULL,
+				projected_points INTEGER DEFAULT 0 NOT NULL,
+				completed_games INTEGER DEFAULT 0 NOT NULL,
+				total_games INTEGER DEFAULT 0 NOT NULL,
+				last_updated INTEGER NOT NULL
+			)
+		`);
+		console.log('✅ Created user_weekly_scores table');
+		
 		// Create indexes for better performance
 		console.log('📈 Creating indexes...');
 		

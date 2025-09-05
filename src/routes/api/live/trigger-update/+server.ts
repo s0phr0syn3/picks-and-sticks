@@ -1,19 +1,27 @@
 import type { RequestHandler } from './$types';
-import { getLiveScoreScheduler } from '$lib/server/live-score-scheduler';
+import { LiveScoringService } from '$lib/server/live-scoring';
 import { json } from '@sveltejs/kit';
 
 // Manual trigger endpoint for testing/admin use
 export const POST: RequestHandler = async ({ request, url }) => {
 	try {
-		const body = await request.json();
-		const week = body.week || parseInt(url.searchParams.get('week') || '1');
+		let week = 1;
 		
-		const scheduler = getLiveScoreScheduler();
-		if (!scheduler) {
-			return json({ error: 'Live scoring not initialized' }, { status: 500 });
+		// Try to get week from body or query params
+		try {
+			const body = await request.json();
+			week = body.week || parseInt(url.searchParams.get('week') || '1');
+		} catch {
+			week = parseInt(url.searchParams.get('week') || '1');
+		}
+		
+		const apiKey = process.env.API_KEY;
+		if (!apiKey) {
+			return json({ error: 'API key not configured' }, { status: 500 });
 		}
 
-		await scheduler.triggerUpdate(week);
+		const liveScoringService = new LiveScoringService(apiKey);
+		await liveScoringService.updateLiveScores(week);
 		
 		return json({
 			success: true,
@@ -28,13 +36,12 @@ export const POST: RequestHandler = async ({ request, url }) => {
 };
 
 export const GET: RequestHandler = async () => {
-	const scheduler = getLiveScoreScheduler();
-	if (!scheduler) {
-		return json({ error: 'Live scoring not initialized' }, { status: 500 });
-	}
-
+	// For now, just return a simple status
 	return json({
 		success: true,
-		status: scheduler.getStatus()
+		status: {
+			message: 'Live scoring service available',
+			timestamp: new Date().toISOString()
+		}
 	});
 };

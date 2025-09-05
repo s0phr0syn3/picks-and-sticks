@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { getLiveScoreScheduler } from '$lib/server/live-score-scheduler';
+import { LiveScoringService } from '$lib/server/live-scoring';
 import { json } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async ({ params }) => {
@@ -10,23 +10,26 @@ export const GET: RequestHandler = async ({ params }) => {
 	}
 
 	try {
-		const scheduler = getLiveScoreScheduler();
-		if (!scheduler) {
-			return json({ error: 'Live scoring not initialized' }, { status: 500 });
+		// Create a new instance for this request
+		const apiKey = process.env.API_KEY;
+		if (!apiKey) {
+			return json({ error: 'API key not configured' }, { status: 500 });
 		}
 
+		const liveScoringService = new LiveScoringService(apiKey);
+		
 		// Get live leaderboard
-		const leaderboard = await scheduler.liveScoringService.getLiveLeaderboard(week);
+		const leaderboard = await liveScoringService.getLiveLeaderboard(week);
 		
 		// Get game statuses
-		const games = await scheduler.liveScoringService.getLiveGamesStatus(week);
+		const games = await liveScoringService.getLiveGamesStatus(week);
 		
 		return json({
 			success: true,
 			data: {
 				week,
-				leaderboard,
-				games,
+				leaderboard: leaderboard || [],
+				games: games || [],
 				lastUpdated: new Date().toISOString()
 			}
 		});

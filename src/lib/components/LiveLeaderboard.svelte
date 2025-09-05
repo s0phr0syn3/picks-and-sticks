@@ -17,6 +17,8 @@
 		eventId: number;
 		homeTeamId: number;
 		awayTeamId: number;
+		homeTeamName: string;
+		awayTeamName: string;
 		homeScore: number;
 		awayScore: number;
 		quarter: string | null;
@@ -177,7 +179,7 @@
 						<div class="flex items-center justify-between">
 							<div class="flex items-center space-x-2">
 								<span class="animate-pulse text-red-500">●</span>
-								<span class="font-medium">Team {game.homeTeamId} vs Team {game.awayTeamId}</span>
+								<span class="font-medium">{game.awayTeamName} @ {game.homeTeamName}</span>
 							</div>
 							<div class="text-right">
 								<div class="font-bold">{game.homeScore} - {game.awayScore}</div>

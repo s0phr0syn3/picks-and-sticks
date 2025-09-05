@@ -9,6 +9,7 @@ export class LiveScoreScheduler {
 	constructor(apiKey: string) {
 		this.liveScoringService = new LiveScoringService(apiKey);
 		this.currentWeek = this.getCurrentNFLWeek();
+		this.checkIfGameDay();
 	}
 
 	/**
@@ -63,6 +64,8 @@ export class LiveScoreScheduler {
 		
 		this.isGameDay = isGameDayOfWeek && isGameHours;
 		
+		console.log(`🗓️  Game day check: Day=${day}, Hour=${hour}, IsGameDayOfWeek=${isGameDayOfWeek}, IsGameHours=${isGameHours}, IsGameDay=${this.isGameDay}`);
+		
 		if (this.isGameDay && !this.wasGameDay) {
 			console.log('🏈 Game day activated! Starting frequent updates...');
 		} else if (!this.isGameDay && this.wasGameDay) {
@@ -80,10 +83,12 @@ export class LiveScoreScheduler {
 	private getCurrentNFLWeek(): number {
 		// This is a simplified version - you'd want to calculate based on NFL season start
 		const now = new Date();
-		const seasonStart = new Date('2024-09-05'); // Example NFL season start
+		// Set season start to September 4th so that Sept 5th games are in Week 1
+		const seasonStart = new Date('2025-09-04'); // 2025 NFL season start
 		const diffTime = now.getTime() - seasonStart.getTime();
 		const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 		const week = Math.max(1, Math.min(18, Math.floor(diffDays / 7) + 1));
+		console.log(`📅 NFL Week calculation: Today=${now.toISOString().slice(0, 10)}, SeasonStart=2025-09-04, DiffDays=${diffDays}, Week=${week}`);
 		return week;
 	}
 

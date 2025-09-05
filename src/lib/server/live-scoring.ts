@@ -1,5 +1,5 @@
 import { db } from './db';
-import { schedules, picks, users, liveScores, userWeeklyScores } from './models';
+import { schedules, picks, users, liveScores, userWeeklyScores, teams } from './models';
 import { eq, and, sql } from 'drizzle-orm';
 
 interface LiveGameData {
@@ -23,85 +23,150 @@ export class LiveScoringService {
 	 */
 	async updateLiveScores(week: number): Promise<void> {
 		try {
-			// Get all games for the week
+			console.log(`\n📊 LIVE SCORING UPDATE - Week ${week} - ${new Date().toISOString()}`);
+			console.log('='.repeat(60));
+			
+			// Get all games for the week with team names
 			const weekGames = await db
 				.select({
 					eventId: schedules.eventId,
 					homeTeamId: schedules.homeTeamId,
-					awayTeamId: schedules.awayTeamId
+					awayTeamId: schedules.awayTeamId,
+					homeTeamName: sql<string>`(SELECT name FROM teams WHERE team_id = ${schedules.homeTeamId})`,
+					awayTeamName: sql<string>`(SELECT name FROM teams WHERE team_id = ${schedules.awayTeamId})`
 				})
 				.from(schedules)
 				.where(eq(schedules.week, week));
 
-			console.log(`Updating live scores for ${weekGames.length} games in week ${week}`);
+			console.log(`📅 Found ${weekGames.length} games to check for week ${week}`);
 
-			// Fetch live data for each game
-			for (const game of weekGames) {
-				await this.updateGameScore(game.eventId);
-				// Small delay to avoid rate limiting
-				await new Promise(resolve => setTimeout(resolve, 100));
-			}
+			// Fetch all live scores for NFL at once
+			await this.updateAllNFLScores(weekGames);
 
 			// Recalculate user scores for the week
 			await this.updateUserWeeklyScores(week);
 			
+			console.log('='.repeat(60));
+			console.log(`✨ Live scoring update complete for week ${week}\n`);
+			
 		} catch (error) {
-			console.error('Error updating live scores:', error);
+			console.error('❌ Error updating live scores:', error);
 		}
 	}
 
 	/**
-	 * Update score for a specific game
+	 * Update all NFL live scores using the league livescore endpoint
 	 */
-	private async updateGameScore(eventId: number): Promise<void> {
+	private async updateAllNFLScores(weekGames: any[]): Promise<void> {
 		try {
-			// Fetch live game data from TheSportsDB
-			const response = await fetch(
-				`https://www.thesportsdb.com/api/v2/json/${this.apiKey}/live/event/${eventId}`
-			);
+			const apiUrl = `https://www.thesportsdb.com/api/v2/json/${this.apiKey}/livescore/4391`;
+			console.log(`🔍 Fetching all NFL live scores from: ${apiUrl}`);
 			
-			if (!response.ok) return;
+			// Fetch all live NFL scores
+			const response = await fetch(apiUrl);
+			
+			if (!response.ok) {
+				console.log(`⚠️  API response not ok: ${response.status} ${response.statusText}`);
+				return;
+			}
 			
 			const data = await response.json();
-			const gameData = data.events?.[0] as LiveGameData;
+			console.log(`📡 NFL Live Scores Response:`, JSON.stringify(data, null, 2));
 			
-			if (!gameData) return;
+			const liveEvents = data.livescore || [];
+			console.log(`🏈 Found ${liveEvents.length} live NFL events`);
 
-			const isLive = gameData.strStatus === 'In Play';
-			const isComplete = gameData.strStatus === 'Match Finished';
-			const homeScore = parseInt(gameData.intHomeScore || '0');
-			const awayScore = parseInt(gameData.intAwayScore || '0');
+			// Create a map of our week games by event ID for quick lookup
+			const weekGameMap = new Map();
+			weekGames.forEach(game => {
+				weekGameMap.set(game.eventId, game);
+			});
 
-			// Update or insert live score
-			await db
-				.insert(liveScores)
-				.values({
-					eventId,
-					homeScore,
-					awayScore,
-					quarter: gameData.strProgress || null,
-					timeRemaining: gameData.strTime || null,
-					lastUpdated: new Date(),
-					isLive,
-					isComplete
-				})
-				.onConflictDoUpdate({
-					target: liveScores.eventId,
-					set: {
+			// Process each live event
+			for (const event of liveEvents) {
+				const eventId = parseInt(event.idEvent);
+				const weekGame = weekGameMap.get(eventId);
+				
+				if (!weekGame) {
+					// This live game is not part of our week's schedule, skip it
+					continue;
+				}
+				
+				console.log(`🎮 Processing Event ${eventId}: ${event.strProgress || 'Not Started'}, Home: ${event.intHomeScore}, Away: ${event.intAwayScore}`);
+
+				const isLive = event.strProgress && event.strProgress !== 'Not Started' && event.strProgress !== 'Match Finished';
+				const isComplete = event.strProgress === 'Match Finished' || event.strProgress === 'FT';
+				const homeScore = parseInt(event.intHomeScore || '0');
+				const awayScore = parseInt(event.intAwayScore || '0');
+
+				// Update or insert live score
+				await db
+					.insert(liveScores)
+					.values({
+						eventId,
 						homeScore,
 						awayScore,
-						quarter: gameData.strProgress || null,
-						timeRemaining: gameData.strTime || null,
+						quarter: event.strProgress || null,
+						timeRemaining: event.strEventTime || null,
 						lastUpdated: new Date(),
 						isLive,
 						isComplete
-					}
-				});
+					})
+					.onConflictDoUpdate({
+						target: liveScores.eventId,
+						set: {
+							homeScore,
+							awayScore,
+							quarter: event.strProgress || null,
+							timeRemaining: event.strEventTime || null,
+							lastUpdated: new Date(),
+							isLive,
+							isComplete
+						}
+					});
 
-			console.log(`Updated game ${eventId}: ${homeScore}-${awayScore} (${gameData.strStatus})`);
+				// Format team matchup for logging
+				const matchup = weekGame.homeTeamName && weekGame.awayTeamName ? 
+					`${weekGame.awayTeamName} @ ${weekGame.homeTeamName}` : `Game ${eventId}`;
+				const statusIcon = isLive ? '🔴' : isComplete ? '✅' : '⏸️';
+				const timeInfo = event.strProgress ? ` | ${event.strProgress}` : '';
+				const eventTimeInfo = event.strEventTime ? ` | ${event.strEventTime}` : '';
+				
+				console.log(`  ${statusIcon} ${matchup}: ${awayScore}-${homeScore}${timeInfo}${eventTimeInfo}`);
+			}
+
+			// For games not in the live feed, ensure they're recorded as not started
+			for (const game of weekGames) {
+				const hasLiveData = liveEvents.some((event: any) => parseInt(event.idEvent) === game.eventId);
+				if (!hasLiveData) {
+					// Game not in live feed, ensure it exists with default values
+					await db
+						.insert(liveScores)
+						.values({
+							eventId: game.eventId,
+							homeScore: 0,
+							awayScore: 0,
+							quarter: null,
+							timeRemaining: null,
+							lastUpdated: new Date(),
+							isLive: false,
+							isComplete: false
+						})
+						.onConflictDoUpdate({
+							target: liveScores.eventId,
+							set: {
+								lastUpdated: new Date()
+							}
+						});
+
+					const matchup = game.homeTeamName && game.awayTeamName ? 
+						`${game.awayTeamName} @ ${game.homeTeamName}` : `Game ${game.eventId}`;
+					console.log(`  ⏸️ ${matchup}: 0-0 | Not Started`);
+				}
+			}
 			
 		} catch (error) {
-			console.error(`Error updating game ${eventId}:`, error);
+			console.error('Error updating NFL live scores:', error);
 		}
 	}
 
@@ -247,6 +312,8 @@ export class LiveScoringService {
 				eventId: liveScores.eventId,
 				homeTeamId: schedules.homeTeamId,
 				awayTeamId: schedules.awayTeamId,
+				homeTeamName: sql<string>`(SELECT name FROM teams WHERE team_id = ${schedules.homeTeamId})`,
+				awayTeamName: sql<string>`(SELECT name FROM teams WHERE team_id = ${schedules.awayTeamId})`,
 				homeScore: liveScores.homeScore,
 				awayScore: liveScores.awayScore,
 				quarter: liveScores.quarter,

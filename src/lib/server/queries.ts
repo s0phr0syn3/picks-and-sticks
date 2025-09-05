@@ -1,6 +1,6 @@
-import { eq, and, sql, inArray, aliasedTable, notInArray } from 'drizzle-orm';
+import { eq, and, sql, inArray, aliasedTable, notInArray, or } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { picks, schedules, teams, users } from '$lib/server/models';
+import { picks, schedules, teams, users, liveScores } from '$lib/server/models';
 import { randomSort } from '$lib/utils';
 
 const getRandomUserOrder = () => {
@@ -18,35 +18,180 @@ const getRandomUserOrder = () => {
 
 export const getAvailableTeams = (week: number, selectedTeams: Set<number>) => {
 	console.log(`Getting teams for week ${week}`);
-	const weekTeams = db
+	
+	// Get all games for the week with their start times and live status
+	const weekGames = db
 		.select({
 			homeTeamId: schedules.homeTeamId,
-			awayTeamId: schedules.awayTeamId
+			awayTeamId: schedules.awayTeamId,
+			eventId: schedules.eventId,
+			gameDate: schedules.gameDate,
+			isLive: liveScores.isLive,
+			isComplete: liveScores.isComplete
 		})
 		.from(schedules)
+		.leftJoin(liveScores, eq(schedules.eventId, liveScores.eventId))
 		.where(eq(schedules.week, week))
 		.all();
 
-	const teamIds: Array<number> = weekTeams.reduce((ids: Array<number>, game) => {
+	const currentTime = new Date();
+	const unavailableTeamIds = new Set<number>();
+
+	// Filter out teams whose games have started or are live/complete
+	for (const game of weekGames) {
+		const gameStartTime = new Date(game.gameDate);
+		const gameHasStarted = currentTime >= gameStartTime;
+		const gameIsLiveOrComplete = game.isLive || game.isComplete;
+		
+		if (gameHasStarted || gameIsLiveOrComplete) {
+			unavailableTeamIds.add(game.homeTeamId);
+			unavailableTeamIds.add(game.awayTeamId);
+			console.log(`Game ${game.eventId} has started or is live/complete - teams ${game.homeTeamId} and ${game.awayTeamId} unavailable`);
+		}
+	}
+
+	const allTeamIds: Array<number> = weekGames.reduce((ids: Array<number>, game) => {
 		ids.push(game.homeTeamId, game.awayTeamId);
 		return ids;
 	}, []);
 
-	if (teamIds.length === 0) {
+	// Remove teams that are already selected OR games have started
+	const finalUnavailableTeams = [...selectedTeams, ...unavailableTeamIds];
+
+	if (allTeamIds.length === 0) {
 		console.log(`No teams available for week ${week}`);
 		return [];
 	}
 
-	return db
+	const availableTeams = db
 		.select({
 			id: teams.teamId,
 			teamId: teams.teamId,
 			name: teams.name
 		})
 		.from(teams)
-		.where(and(inArray(teams.teamId, teamIds), notInArray(teams.teamId, [...selectedTeams])))
+		.where(and(
+			inArray(teams.teamId, allTeamIds), 
+			notInArray(teams.teamId, finalUnavailableTeams)
+		))
 		.orderBy(teams.name)
 		.all();
+
+	console.log(`Week ${week}: ${availableTeams.length} teams available for draft, ${unavailableTeamIds.size} teams unavailable due to started games`);
+	
+	return availableTeams;
+};
+
+export const getAllTeamsForWeek = (week: number, selectedTeams: Set<number>) => {
+	console.log(`Getting all teams for week ${week} with status`);
+	
+	// Get all teams first
+	const allTeams = db
+		.select({
+			id: teams.teamId,
+			teamId: teams.teamId,
+			name: teams.name
+		})
+		.from(teams)
+		.orderBy(teams.name)
+		.all();
+	
+	// Get all games for the week with their start times and live status
+	const weekGames = db
+		.select({
+			homeTeamId: schedules.homeTeamId,
+			awayTeamId: schedules.awayTeamId,
+			eventId: schedules.eventId,
+			gameDate: schedules.gameDate,
+			isLive: liveScores.isLive,
+			isComplete: liveScores.isComplete
+		})
+		.from(schedules)
+		.leftJoin(liveScores, eq(schedules.eventId, liveScores.eventId))
+		.where(eq(schedules.week, week))
+		.all();
+
+	const currentTime = new Date();
+	const gameStatusMap = new Map<number, {
+		gameHasStarted: boolean;
+		isLive: boolean;
+		isComplete: boolean;
+		gameDate: string;
+		hasGame: boolean;
+	}>();
+
+	// Build status map for teams with games
+	const teamsWithGames = new Set<number>();
+	for (const game of weekGames) {
+		const gameStartTime = new Date(game.gameDate);
+		const gameHasStarted = currentTime >= gameStartTime;
+		const gameIsLiveOrComplete = game.isLive || game.isComplete;
+		
+		const status = {
+			gameHasStarted,
+			isLive: !!game.isLive,
+			isComplete: !!game.isComplete,
+			gameDate: game.gameDate,
+			hasGame: true
+		};
+		
+		gameStatusMap.set(game.homeTeamId, status);
+		gameStatusMap.set(game.awayTeamId, status);
+		teamsWithGames.add(game.homeTeamId);
+		teamsWithGames.add(game.awayTeamId);
+	}
+
+	const availableTeams = [];
+	const unavailableTeams = [];
+
+	for (const team of allTeams) {
+		const isSelected = selectedTeams.has(team.teamId);
+		const gameStatus = gameStatusMap.get(team.teamId);
+		const hasGame = teamsWithGames.has(team.teamId);
+		
+		// Team is on bye week if they don't have a game scheduled
+		if (!hasGame) {
+			unavailableTeams.push({
+				...team,
+				isSelected: false,
+				gameHasStarted: false,
+				isLive: false,
+				isComplete: false,
+				gameDate: null,
+				reason: 'Bye week',
+				isBye: true
+			});
+			continue;
+		}
+		
+		const gameHasStarted = gameStatus?.gameHasStarted || false;
+		const isLive = gameStatus?.isLive || false;
+		const isComplete = gameStatus?.isComplete || false;
+		
+		const teamWithStatus = {
+			...team,
+			isSelected,
+			gameHasStarted,
+			isLive,
+			isComplete,
+			gameDate: gameStatus?.gameDate || null,
+			isBye: false
+		};
+
+		if (isSelected) {
+			unavailableTeams.push({ ...teamWithStatus, reason: 'Already selected' });
+		} else if (gameHasStarted || isLive || isComplete) {
+			const reason = isComplete ? 'Game finished' : isLive ? 'Game in progress' : 'Game started';
+			unavailableTeams.push({ ...teamWithStatus, reason });
+		} else {
+			availableTeams.push(teamWithStatus);
+		}
+	}
+	
+	const byeTeams = unavailableTeams.filter(t => t.isBye).length;
+	console.log(`Week ${week}: ${availableTeams.length} available, ${unavailableTeams.length} unavailable teams (${byeTeams} bye weeks)`);
+	
+	return { availableTeams, unavailableTeams };
 };
 
 export const getTeamScores = (week: number) => {

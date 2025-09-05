@@ -8,6 +8,7 @@
 
 	let draftState: DraftPick[] = data.draftState;
 	let availableTeams: AvailableTeam[] = data.availableTeams;
+	let unavailableTeams: any[] = data.unavailableTeams || [];
 	let week: number = data.week;
 	let currentPick = draftState.find((pick) => !pick.teamId);
 	let selectedTeam: AvailableTeam | null = null;
@@ -56,10 +57,13 @@
 					window.location.reload();
 				}
 			} else {
-				console.error(`Failed to select team: ${await res.text()}`);
+				const errorData = await res.json();
+				alert(errorData.error || 'Failed to select team');
+				console.error(`Failed to select team: ${errorData.error}`);
 			}
 		} catch (error) {
 			console.error(`Error selecting team: ${error}`);
+			alert('Error selecting team. Please try again.');
 		}
 	}
 </script>
@@ -283,10 +287,15 @@
 			<div class="lg:col-span-1">
 				<div class="bg-white rounded-xl shadow-lg p-6">
 					<h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-						🏟️ Available Teams
-						<span class="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-							{availableTeams.length}
+						🏟️ Teams 
+						<span class="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">
+							{availableTeams.length} Available
 						</span>
+						{#if unavailableTeams.length > 0}
+							<span class="ml-1 text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">
+								{unavailableTeams.length} Unavailable
+							</span>
+						{/if}
 					</h3>
 
 					{#if currentPick}
@@ -308,13 +317,40 @@
 
 						<!-- Team Grid -->
 						<div class="max-h-96 overflow-y-auto space-y-2">
-							{#each availableTeams as team}
-								<button
-									class="w-full text-left p-3 rounded-lg border-2 transition-all duration-200 hover:shadow-md {selectedTeam?.teamId === team.teamId ? 'border-green-500 bg-green-50 shadow-md' : 'border-gray-200 hover:border-gray-300'}"
-									on:click={() => selectTeam(team)}
-								>
-									<div class="font-medium text-gray-900">{team.name}</div>
-								</button>
+							{#each [...availableTeams.map(t => ({...t, available: true})), ...unavailableTeams.map(t => ({...t, available: false}))].sort((a, b) => a.name.localeCompare(b.name)) as team}
+								{#if team.available}
+									<!-- Available Team Button -->
+									<button
+										class="w-full text-left p-3 rounded-lg border-2 transition-all duration-200 hover:shadow-md {selectedTeam?.teamId === team.teamId ? 'border-green-500 bg-green-50 shadow-md' : 'border-gray-200 hover:border-gray-300'}"
+										on:click={() => selectTeam(team)}
+									>
+										<div class="font-medium text-gray-900">{team.name}</div>
+									</button>
+								{:else}
+									<!-- Unavailable Team Button (Disabled) -->
+									<button
+										class="w-full text-left p-3 rounded-lg border-2 border-gray-300 bg-gray-100 cursor-not-allowed opacity-60"
+										disabled
+										title="Cannot draft: {team.reason}"
+									>
+										<div class="flex justify-between items-center">
+											<div class="font-medium text-gray-500">{team.name}</div>
+											<div class="text-xs text-gray-600 font-medium flex items-center gap-1">
+												{#if team.isBye}
+													<span class="text-purple-600">📅 Bye</span>
+												{:else if team.isLive}
+													<span class="text-red-600">🔴 Live</span>
+												{:else if team.isComplete}
+													<span class="text-green-600">✅ Final</span>
+												{:else if team.gameHasStarted}
+													<span class="text-orange-600">⏰ Started</span>
+												{:else if team.isSelected}
+													<span class="text-blue-600">👤 Taken</span>
+												{/if}
+											</div>
+										</div>
+									</button>
+								{/if}
 							{/each}
 						</div>
 					{:else}

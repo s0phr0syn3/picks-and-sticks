@@ -42,6 +42,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
 	return {
 		draftState: data.draftState,
 		availableTeams: data.availableTeams,
+		unavailableTeams: data.unavailableTeams || [],
 		week,
 		previousWeekPunishment,
 		currentWeekPunishment

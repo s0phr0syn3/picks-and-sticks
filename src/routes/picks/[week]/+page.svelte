@@ -1,7 +1,11 @@
 <script lang="ts">
 	import type { PicksPageData, PickWithDetails, UserWithPoints } from '$lib/types';
+	import LiveLeaderboard from '$lib/components/LiveLeaderboard.svelte';
 	
 	export let data: PicksPageData;
+	
+	// Show live scores during game days
+	const showLiveScores = true; // You can make this conditional based on day/time
 
 	let week: number = data.week;
 	let picks: PickWithDetails[] = data.picks;
@@ -101,6 +105,13 @@
 	</div>
 
 	<div class="container mx-auto px-6 py-8">
+		<!-- Live Scores (if game day) -->
+		{#if showLiveScores}
+			<div class="mb-8">
+				<LiveLeaderboard {week} />
+			</div>
+		{/if}
+		
 		<!-- Status Banner -->
 		{#if picks.length > 0 && picks.some((pick) => pick.teamId === null)}
 			<!-- Draft in Progress -->
