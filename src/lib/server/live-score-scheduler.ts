@@ -1,13 +1,14 @@
-import { LiveScoringService } from './live-scoring';
+import { ESPNLiveScoringService } from './live-scoring-espn';
 import cron from 'node-cron';
 
 export class LiveScoreScheduler {
-	private liveScoringService: LiveScoringService;
+	private liveScoringService: ESPNLiveScoringService;
 	private currentWeek: number = 1;
 	private isGameDay: boolean = false;
 	
-	constructor(apiKey: string) {
-		this.liveScoringService = new LiveScoringService(apiKey);
+	constructor(apiKey?: string) {
+		// ESPN API doesn't require API key
+		this.liveScoringService = new ESPNLiveScoringService();
 		this.currentWeek = this.getCurrentNFLWeek();
 		this.checkIfGameDay();
 	}
@@ -18,8 +19,9 @@ export class LiveScoreScheduler {
 	start(): void {
 		console.log('🔄 Starting live score scheduler...');
 		
-		// Update every 2 minutes during game days (Thursdays, Sundays, Mondays)
-		cron.schedule('*/2 * * * *', async () => {
+		// Update every 30 seconds during game days (Thursdays, Sundays, Mondays)
+		// ESPN updates their data every 30 seconds, so this matches their frequency
+		cron.schedule('*/30 * * * * *', async () => {
 			if (this.isGameDay) {
 				console.log('⚡ Updating live scores...');
 				await this.liveScoringService.updateLiveScores(this.currentWeek);

@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { LiveScoringService } from '$lib/server/live-scoring';
+import { ESPNLiveScoringService } from '$lib/server/live-scoring-espn';
 import { json } from '@sveltejs/kit';
 
 // Manual trigger endpoint for testing/admin use
@@ -15,12 +15,7 @@ export const POST: RequestHandler = async ({ request, url }) => {
 			week = parseInt(url.searchParams.get('week') || '1');
 		}
 		
-		const apiKey = process.env.API_KEY;
-		if (!apiKey) {
-			return json({ error: 'API key not configured' }, { status: 500 });
-		}
-
-		const liveScoringService = new LiveScoringService(apiKey);
+		const liveScoringService = new ESPNLiveScoringService();
 		await liveScoringService.updateLiveScores(week);
 		
 		return json({

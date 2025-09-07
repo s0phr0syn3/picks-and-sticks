@@ -4,6 +4,7 @@ import { users } from '$lib/server/models';
 import { eq } from 'drizzle-orm';
 import { fail } from '@sveltejs/kit';
 import { hashPassword } from '$lib/server/auth';
+import { v4 as uuidv4 } from 'uuid';
 
 export const load: PageServerLoad = async () => {
 	// Get all users from database
@@ -99,6 +100,44 @@ export const actions: Actions = {
 		} catch (error) {
 			console.error('Error resetting password:', error);
 			return fail(500, { error: 'Failed to reset password' });
+		}
+	},
+	
+	createUser: async ({ request }) => {
+		const data = await request.formData();
+		const username = data.get('username') as string;
+		const firstName = data.get('firstName') as string;
+		const lastName = data.get('lastName') as string;
+		const password = data.get('password') as string;
+		
+		if (!username || !firstName || !lastName || !password) {
+			return fail(400, { error: 'All fields are required' });
+		}
+		
+		try {
+			const passwordHash = await hashPassword(password);
+			const userId = uuidv4();
+			
+			await db.insert(users).values({
+				id: userId,
+				username,
+				firstName,
+				lastName,
+				passwordHash,
+				createdAt: new Date()
+			});
+			
+			return { 
+				success: true, 
+				userCreated: true,
+				message: `User ${firstName} ${lastName} created successfully`
+			};
+		} catch (error: any) {
+			console.error('Error creating user:', error);
+			if (error.message?.includes('UNIQUE constraint failed: users.username')) {
+				return fail(409, { error: 'Username is already taken' });
+			}
+			return fail(500, { error: 'Failed to create user' });
 		}
 	}
 };

@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
-import { LiveScoringService } from '$lib/server/live-scoring';
+import { ESPNLiveScoringService } from '$lib/server/live-scoring-espn';
+// ESPN API doesn't require an API key, but keeping for compatibility
 import { API_KEY } from '$env/static/private';
 
 function getCurrentNFLWeek(): number {
@@ -20,8 +21,8 @@ export async function POST() {
 			throw new Error('API_KEY not configured');
 		}
 		
-		// Create service instance
-		const liveScoringService = new LiveScoringService(API_KEY);
+		// Create service instance (ESPN doesn't need API key)
+		const liveScoringService = new ESPNLiveScoringService();
 		
 		// Get current NFL week
 		const currentWeek = getCurrentNFLWeek();

@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { getLiveScoreScheduler } from '$lib/server/live-score-scheduler';
-import { LiveScoringService } from '$lib/server/live-scoring';
+import { ESPNLiveScoringService } from '$lib/server/live-scoring-espn';
 
 export const GET: RequestHandler = async ({ params }) => {
 	const week = parseInt(params.week, 10);
@@ -24,15 +24,7 @@ export const GET: RequestHandler = async ({ params }) => {
 		}
 
 		// Create a new service instance to fetch live scores
-		const API_KEY = process.env.API_KEY;
-		if (!API_KEY) {
-			return new Response(JSON.stringify({ error: 'API key not configured' }), {
-				status: 500,
-				headers: { 'Content-Type': 'application/json' }
-			});
-		}
-
-		const service = new LiveScoringService(API_KEY);
+		const service = new ESPNLiveScoringService();
 		const liveGamesStatus = await service.getLiveGamesStatus(week);
 		const liveLeaderboard = await service.getLiveLeaderboard(week);
 

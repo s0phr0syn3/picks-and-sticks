@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { LiveScoringService } from '$lib/server/live-scoring';
+import { ESPNLiveScoringService } from '$lib/server/live-scoring-espn';
 import { json } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async ({ params }) => {
@@ -11,12 +11,7 @@ export const GET: RequestHandler = async ({ params }) => {
 
 	try {
 		// Create a new instance for this request
-		const apiKey = process.env.API_KEY;
-		if (!apiKey) {
-			return json({ error: 'API key not configured' }, { status: 500 });
-		}
-
-		const liveScoringService = new LiveScoringService(apiKey);
+		const liveScoringService = new ESPNLiveScoringService();
 		
 		// Get live leaderboard
 		const leaderboard = await liveScoringService.getLiveLeaderboard(week);

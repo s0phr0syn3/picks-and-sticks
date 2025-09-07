@@ -12,6 +12,15 @@
 		lastName: ''
 	};
 	
+	// New user form
+	let showCreateForm = false;
+	let newUserForm = {
+		username: '',
+		firstName: '',
+		lastName: '',
+		password: ''
+	};
+	
 	function startEdit(user: any) {
 		editingUserId = user.id;
 		editForm.username = user.username;
@@ -82,6 +91,10 @@
 					<h3 class="font-semibold text-green-800">Draft Order Management</h3>
 					<p class="text-sm text-green-600">Set and customize draft order for each week</p>
 				</a>
+				<a href="/admin/assign-teams" class="block p-4 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
+					<h3 class="font-semibold text-purple-800">Assign Teams to Picks</h3>
+					<p class="text-sm text-purple-600">Manually assign teams (testing/corrections)</p>
+				</a>
 				<div class="block p-4 bg-gray-50 rounded-lg">
 					<h3 class="font-semibold text-gray-800">User Management</h3>
 					<p class="text-sm text-gray-600">Edit users and reset passwords (below)</p>
@@ -115,6 +128,11 @@
 				<p class="font-semibold">Password reset successfully!</p>
 				<p class="mt-2">New password: <code class="bg-white px-2 py-1 rounded font-mono text-sm">{form.newPassword}</code></p>
 				<p class="text-sm mt-1">Please share this password securely with the user.</p>
+			</div>
+		{:else if form?.success && form?.userCreated}
+			<div class="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+				<p class="font-semibold">{form.message}</p>
+				<p class="text-sm mt-1">The user can now sign in with their credentials.</p>
 			</div>
 		{:else if form?.success}
 			<div class="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
@@ -233,9 +251,114 @@
 			</table>
 		</div>
 		
-		<div class="mt-6 text-gray-600">
-			<p>Total users: {data.users.length}</p>
+		<div class="mt-6 flex justify-between items-center">
+			<p class="text-gray-600">Total users: {data.users.length}</p>
+			<button
+				on:click={() => showCreateForm = !showCreateForm}
+				class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+			>
+				{showCreateForm ? 'Cancel' : '+ Add New User'}
+			</button>
 		</div>
+		
+		{#if showCreateForm}
+			<div class="mt-6 p-6 bg-gray-50 rounded-lg">
+				<h3 class="text-lg font-semibold text-gray-800 mb-4">Create New User</h3>
+				<form method="POST" action="?/createUser" use:enhance={() => {
+					return async ({ result, update }) => {
+						await update();
+						if (result.type === 'success') {
+							// Reset form and hide it
+							newUserForm = {
+								username: '',
+								firstName: '',
+								lastName: '',
+								password: ''
+							};
+							showCreateForm = false;
+						}
+					};
+				}}>
+					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+						<div>
+							<label for="new-username" class="block text-sm font-medium text-gray-700 mb-1">
+								Username
+							</label>
+							<input
+								type="text"
+								id="new-username"
+								name="username"
+								bind:value={newUserForm.username}
+								required
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								placeholder="Enter username"
+							/>
+						</div>
+						
+						<div>
+							<label for="new-password" class="block text-sm font-medium text-gray-700 mb-1">
+								Password
+							</label>
+							<input
+								type="password"
+								id="new-password"
+								name="password"
+								bind:value={newUserForm.password}
+								required
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								placeholder="Enter password"
+							/>
+						</div>
+						
+						<div>
+							<label for="new-firstName" class="block text-sm font-medium text-gray-700 mb-1">
+								First Name
+							</label>
+							<input
+								type="text"
+								id="new-firstName"
+								name="firstName"
+								bind:value={newUserForm.firstName}
+								required
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								placeholder="Enter first name"
+							/>
+						</div>
+						
+						<div>
+							<label for="new-lastName" class="block text-sm font-medium text-gray-700 mb-1">
+								Last Name
+							</label>
+							<input
+								type="text"
+								id="new-lastName"
+								name="lastName"
+								bind:value={newUserForm.lastName}
+								required
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								placeholder="Enter last name"
+							/>
+						</div>
+					</div>
+					
+					<div class="mt-4 flex justify-end space-x-3">
+						<button
+							type="button"
+							on:click={() => showCreateForm = false}
+							class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+						>
+							Cancel
+						</button>
+						<button
+							type="submit"
+							class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+						>
+							Create User
+						</button>
+					</div>
+				</form>
+			</div>
+		{/if}
 	</div>
 </main>
 
