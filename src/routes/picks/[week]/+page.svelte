@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
+	import { browser } from '$app/environment';
 	import type { PicksPageData, PickWithDetails, UserWithPoints } from '$lib/types';
 	import LiveLeaderboard from '$lib/components/LiveLeaderboard.svelte';
 	
@@ -10,6 +12,7 @@
 	let week: number = data.week;
 	let picks: PickWithDetails[] = data.picks;
 	let totalPoints: UserWithPoints[] = data.totalPoints;
+	let updateInterval: NodeJS.Timeout;
 
 	if (!Array.isArray(picks)) {
 		picks = [];
@@ -22,6 +25,23 @@
 			return;
 		}
 		window.location.href = `/picks/${newWeek}`;
+	}
+
+	async function fetchPicksData() {
+		if (!browser) return;
+		
+		try {
+			const response = await fetch(`/api/picks/${week}`);
+			if (response.ok) {
+				const data = await response.json();
+				if (data.success && data.data) {
+					picks = Array.isArray(data.data.picks) ? data.data.picks : [];
+					totalPoints = Array.isArray(data.data.totalPoints) ? data.data.totalPoints : [];
+				}
+			}
+		} catch (error) {
+			console.error('Error fetching picks data:', error);
+		}
 	}
 
 	async function startDraft() {
@@ -57,6 +77,17 @@
 	// Sort each round by order
 	$: Object.keys(roundGroups).forEach(round => {
 		roundGroups[parseInt(round)].sort((a, b) => a.overallPickOrder - b.overallPickOrder);
+	});
+
+	onMount(() => {
+		// Auto-refresh picks data every 30 seconds during game days
+		updateInterval = setInterval(fetchPicksData, 30000);
+	});
+
+	onDestroy(() => {
+		if (updateInterval) {
+			clearInterval(updateInterval);
+		}
 	});
 </script>
 

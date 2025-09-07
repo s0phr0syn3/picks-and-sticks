@@ -50,13 +50,9 @@ export const POST: RequestHandler = async ({ url, fetch }) => {
 		}
 		steps.push(`Seeded ${schedulesResult.data.successCount} games from ESPN`);
 		
-		// Step 4: If picks were cleared, recreate empty picks for existing users
-		if (!preservePicks && preserveUsers) {
-			const picksResponse = await fetch('/api/seed/picks');
-			const picksResult = await picksResponse.json();
-			if (picksResponse.ok) {
-				steps.push('Recreated empty picks for existing users');
-			}
+		// Step 4: Picks cleared - draft will create picks on-demand for each week
+		if (!preservePicks) {
+			steps.push('Picks cleared - ready for fresh drafts');
 		}
 		
 		return successResponse({
