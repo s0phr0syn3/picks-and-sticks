@@ -513,8 +513,10 @@ export const isWeekComplete = (week: number) => {
 
 export const getCurrentWeek = () => {
 	// Get the current week based on which week has games scheduled for this time period
-	// Logic: find the earliest week that has games not yet completed
+	// Logic: Stay on a week until Wednesday morning after all its games are complete
 	const currentDate = new Date();
+	const currentDay = currentDate.getDay(); // 0=Sunday, 1=Monday, ... 3=Wednesday
+	const currentHour = currentDate.getHours();
 	
 	for (let week = 1; week <= 18; week++) {
 		const weekGames = db
@@ -530,21 +532,36 @@ export const getCurrentWeek = () => {
 
 		if (weekGames.length === 0) continue;
 
-		// If this week has any incomplete games, it's the current week
+		// If this week has any incomplete games, it's definitely the current week
 		const hasIncompleteGames = weekGames.some(game => !game.isComplete);
 		if (hasIncompleteGames) {
-			console.log(`Current week determined to be: ${week}`);
+			console.log(`Current week determined to be: ${week} (incomplete games)`);
 			return week;
 		}
 
-		// If this week has games but they're all complete, 
-		// check if the latest game was recent (within last 3 days)
+		// If this week has games but they're all complete, check if we should advance
+		// Only advance to next week on Wednesday morning (after 6 AM) or later in the week
 		const latestGameDate = new Date(Math.max(...weekGames.map(g => new Date(g.gameDate).getTime())));
 		const daysSinceLatestGame = (currentDate.getTime() - latestGameDate.getTime()) / (1000 * 60 * 60 * 24);
 		
-		if (daysSinceLatestGame <= 3) {
-			console.log(`Current week determined to be: ${week} (recent completion)`);
-			return week;
+		// If games finished recently, check if it's Wednesday morning or later
+		if (daysSinceLatestGame >= 0) {
+			// Find the next Wednesday at 6 AM after the latest game
+			const nextWednesday = new Date(latestGameDate);
+			const daysUntilWednesday = (3 - nextWednesday.getDay() + 7) % 7; // Days until next Wednesday
+			if (daysUntilWednesday === 0 && nextWednesday.getDay() === 3) {
+				// Latest game was on Wednesday, advance to next Wednesday
+				nextWednesday.setDate(nextWednesday.getDate() + 7);
+			} else {
+				nextWednesday.setDate(nextWednesday.getDate() + daysUntilWednesday);
+			}
+			nextWednesday.setHours(6, 0, 0, 0); // 6 AM Wednesday
+			
+			// If we haven't reached the transition point, stay on this week
+			if (currentDate < nextWednesday) {
+				console.log(`Current week determined to be: ${week} (waiting for Wednesday transition)`);
+				return week;
+			}
 		}
 	}
 
