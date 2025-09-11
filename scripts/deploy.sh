@@ -27,6 +27,9 @@ git pull origin main
 echo -e "${BLUE}📦 Installing/updating dependencies...${NC}"
 npm install
 
+echo -e "${BLUE}🗄️  Running database migrations...${NC}"
+NODE_ENV=production npx tsx scripts/migrate-add-draft-lock.ts
+
 echo -e "${BLUE}🗄️  Initializing production database...${NC}"
 NODE_ENV=production npm run db:init
 

@@ -4,38 +4,36 @@ import {
 	getPicksForWeek,
 	getTotalPointsForWeekByUser
 } from '$lib/server/queries';
+import { successResponse, failureResponse } from '$lib/utils';
 
 export const GET: RequestHandler = async ({ params }) => {
 	const week = parseInt(params.week, 10);
 
 	if (isNaN(week)) {
-		return new Response(JSON.stringify({ error: `Invalid week: ${week.toString()}` }), {
-			status: 400
-		});
+		return failureResponse(`Invalid week: ${week.toString()}`, 'Invalid week parameter');
 	}
 
-	const picksForWeek = getPicksForWeek(week);
-	const totalPoints = getTotalPointsForWeekByUser(week);
+	try {
+		const picksForWeek = getPicksForWeek(week);
+		const totalPoints = getTotalPointsForWeekByUser(week);
 
-	if (picksForWeek.length > 0) {
-		return new Response(
-			JSON.stringify({
+		if (picksForWeek.length > 0) {
+			return successResponse({
 				picks: picksForWeek,
 				totalPoints,
 				week
-			}),
-			{ status: 200, headers: { 'Content-Type': 'application/json' } }
-		);
-	}
+			}, `Retrieved ${picksForWeek.length} picks for week ${week}`);
+		}
 
-	const pickOrder = getPickOrderForWeek(week);
+		const pickOrder = getPickOrderForWeek(week);
 
-	return new Response(
-		JSON.stringify({
+		return successResponse({
 			draftState: pickOrder,
 			totalPoints: totalPoints,
 			week
-		}),
-		{ status: 200, headers: { 'Content-Type': 'application/json' } }
-	);
+		}, `Retrieved draft order for week ${week}`);
+	} catch (error) {
+		console.error('Error fetching picks data:', error);
+		return failureResponse(error, 'Failed to fetch picks data');
+	}
 };

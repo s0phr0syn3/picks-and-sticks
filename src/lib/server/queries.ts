@@ -1,6 +1,6 @@
 import { eq, and, sql, inArray, aliasedTable, notInArray, or } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { picks, schedules, teams, users, liveScores } from '$lib/server/models';
+import { picks, schedules, teams, users, liveScores, weeks } from '$lib/server/models';
 import { randomSort } from '$lib/utils';
 
 const getRandomUserOrder = () => {
@@ -195,13 +195,15 @@ export const getAllTeamsForWeek = (week: number, selectedTeams: Set<number>) => 
 };
 
 export const getTeamScores = (week: number) => {
+	// Get scores from live_scores table joined with schedules for team mapping
 	const homeScores = db
 		.select({
 			week: schedules.week,
 			teamId: schedules.homeTeamId,
-			points: schedules.homeScore
+			points: sql<number>`COALESCE(${liveScores.homeScore}, ${schedules.homeScore}, 0)`
 		})
 		.from(schedules)
+		.leftJoin(liveScores, eq(schedules.eventId, liveScores.eventId))
 		.where(eq(schedules.week, week))
 		.all();
 
@@ -209,9 +211,10 @@ export const getTeamScores = (week: number) => {
 		.select({
 			week: schedules.week,
 			teamId: schedules.awayTeamId,
-			points: schedules.awayScore
+			points: sql<number>`COALESCE(${liveScores.awayScore}, ${schedules.awayScore}, 0)`
 		})
 		.from(schedules)
+		.leftJoin(liveScores, eq(schedules.eventId, liveScores.eventId))
 		.where(eq(schedules.week, week))
 		.all();
 
@@ -378,4 +381,174 @@ export const buildFullPickOrder = (pickOrder: Array<{ userId: number; fullName: 
 			orderInRound: index + 1
 		}))
 	];
+};
+
+export const checkAndUpdateDraftLock = async (week: number) => {
+	// Get all selected teams for this week
+	const selectedTeams = db
+		.select({
+			teamId: picks.teamId
+		})
+		.from(picks)
+		.where(and(eq(picks.week, week), sql`${picks.teamId} IS NOT NULL`))
+		.all()
+		.map(pick => pick.teamId!)
+		.filter(teamId => teamId !== null);
+
+	if (selectedTeams.length === 0) {
+		console.log(`No teams selected for week ${week} yet, draft remains unlocked`);
+		return false;
+	}
+
+	// Check if any selected team's game has started
+	const currentTime = new Date();
+	const gamesStarted = db
+		.select({
+			eventId: schedules.eventId,
+			gameDate: schedules.gameDate,
+			homeTeamId: schedules.homeTeamId,
+			awayTeamId: schedules.awayTeamId,
+			isLive: liveScores.isLive,
+			isComplete: liveScores.isComplete
+		})
+		.from(schedules)
+		.leftJoin(liveScores, eq(schedules.eventId, liveScores.eventId))
+		.where(and(
+			eq(schedules.week, week),
+			or(
+				inArray(schedules.homeTeamId, selectedTeams),
+				inArray(schedules.awayTeamId, selectedTeams)
+			)
+		))
+		.all();
+
+	const shouldLock = gamesStarted.some(game => {
+		const gameStartTime = new Date(game.gameDate);
+		const gameHasStarted = currentTime >= gameStartTime;
+		const gameIsLiveOrComplete = game.isLive || game.isComplete;
+		return gameHasStarted || gameIsLiveOrComplete;
+	});
+
+	if (shouldLock) {
+		// Lock the draft by updating/inserting week record
+		await db
+			.insert(weeks)
+			.values({
+				weekNumber: week,
+				isDraftLocked: true,
+				createdAt: new Date(),
+				updatedAt: new Date()
+			})
+			.onConflictDoUpdate({
+				target: weeks.weekNumber,
+				set: {
+					isDraftLocked: true,
+					updatedAt: new Date()
+				}
+			});
+
+		console.log(`🔒 Draft locked for week ${week} - selected team games have started`);
+		return true;
+	}
+
+	return false;
+};
+
+export const isDraftLocked = (week: number) => {
+	const weekData = db
+		.select({
+			isDraftLocked: weeks.isDraftLocked
+		})
+		.from(weeks)
+		.where(eq(weeks.weekNumber, week))
+		.get();
+
+	return weekData?.isDraftLocked || false;
+};
+
+export const unlockDraft = async (week: number) => {
+	// Admin function to unlock draft
+	await db
+		.insert(weeks)
+		.values({
+			weekNumber: week,
+			isDraftLocked: false,
+			createdAt: new Date(),
+			updatedAt: new Date()
+		})
+		.onConflictDoUpdate({
+			target: weeks.weekNumber,
+			set: {
+				isDraftLocked: false,
+				updatedAt: new Date()
+			}
+		});
+
+	console.log(`🔓 Draft unlocked for week ${week} by admin`);
+};
+
+export const isWeekComplete = (week: number) => {
+	// A week is complete when all games for that week are finished
+	const weekGames = db
+		.select({
+			eventId: schedules.eventId,
+			isComplete: liveScores.isComplete
+		})
+		.from(schedules)
+		.leftJoin(liveScores, eq(schedules.eventId, liveScores.eventId))
+		.where(eq(schedules.week, week))
+		.all();
+
+	if (weekGames.length === 0) {
+		console.log(`No games found for week ${week}`);
+		return false;
+	}
+
+	// Week is complete when ALL games are marked as complete
+	const allGamesComplete = weekGames.every(game => game.isComplete === true);
+	
+	console.log(`Week ${week}: ${weekGames.length} games, all complete: ${allGamesComplete}`);
+	return allGamesComplete;
+};
+
+export const getCurrentWeek = () => {
+	// Get the current week based on which week has games scheduled for this time period
+	// Logic: find the earliest week that has games not yet completed
+	const currentDate = new Date();
+	
+	for (let week = 1; week <= 18; week++) {
+		const weekGames = db
+			.select({
+				eventId: schedules.eventId,
+				gameDate: schedules.gameDate,
+				isComplete: liveScores.isComplete
+			})
+			.from(schedules)
+			.leftJoin(liveScores, eq(schedules.eventId, liveScores.eventId))
+			.where(eq(schedules.week, week))
+			.all();
+
+		if (weekGames.length === 0) continue;
+
+		// If this week has any incomplete games, it's the current week
+		const hasIncompleteGames = weekGames.some(game => !game.isComplete);
+		if (hasIncompleteGames) {
+			console.log(`Current week determined to be: ${week}`);
+			return week;
+		}
+
+		// If this week has games but they're all complete, 
+		// check if the latest game was recent (within last 3 days)
+		const latestGameDate = new Date(Math.max(...weekGames.map(g => new Date(g.gameDate).getTime())));
+		const daysSinceLatestGame = (currentDate.getTime() - latestGameDate.getTime()) / (1000 * 60 * 60 * 24);
+		
+		if (daysSinceLatestGame <= 3) {
+			console.log(`Current week determined to be: ${week} (recent completion)`);
+			return week;
+		}
+	}
+
+	// Fallback: return week 1 if no current week found
+	console.log(`No current week found, defaulting to week 1`);
+	return 1;
 };

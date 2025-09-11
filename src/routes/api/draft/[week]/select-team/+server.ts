@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { picks, schedules, liveScores } from '$lib/server/models';
 import { eq, and, or } from 'drizzle-orm';
-import { getAvailableTeams, getPicksForWeek, getAllTeamsForWeek } from '$lib/server/queries';
+import { getAvailableTeams, getPicksForWeek, getAllTeamsForWeek, checkAndUpdateDraftLock, isDraftLocked, isWeekComplete, getPickOrderForWeek } from '$lib/server/queries';
 
 interface Pick {
 	teamId: number | null;
@@ -16,7 +16,37 @@ export const GET: RequestHandler = async ({ params }) => {
 	}
 
 	try {
-		const draftState: Pick[] = getPicksForWeek(week);
+		// Check and update draft lock status
+		await checkAndUpdateDraftLock(week);
+		const isLocked = isDraftLocked(week);
+
+		let draftState: Pick[] = getPicksForWeek(week);
+		
+		// If no draft state exists, check if we can auto-create it
+		if (draftState.length === 0) {
+			// For week 1, always create draft order
+			// For other weeks, check if previous week is complete
+			if (week === 1 || (week > 1 && isWeekComplete(week - 1))) {
+				console.log(`Auto-creating draft order for week ${week}`);
+				const pickOrder = getPickOrderForWeek(week);
+				
+				// Insert the picks
+				for (const pick of pickOrder) {
+					await db.insert(picks).values({
+						week,
+						round: pick.round,
+						userId: pick.userId,
+						teamId: null,
+						orderInRound: pick.orderInRound,
+						assignedById: pick.assignedById
+					});
+				}
+				
+				// Refresh draft state
+				draftState = getPicksForWeek(week);
+			}
+		}
+
 		const selectedTeams = new Set(
 			draftState
 				.filter((pick): pick is Pick & { teamId: number } => pick.teamId !== null)
@@ -30,7 +60,8 @@ export const GET: RequestHandler = async ({ params }) => {
 				draftState,
 				availableTeams,
 				unavailableTeams,
-				week
+				week,
+				isDraftLocked: isLocked
 			}),
 			{ status: 200, headers: { 'Content-Type': 'application/json' } }
 		);
@@ -55,6 +86,17 @@ export const POST: RequestHandler = async ({ params, request }) => {
 	}
 
 	try {
+		// Check if draft is locked due to games starting
+		await checkAndUpdateDraftLock(week);
+		if (isDraftLocked(week)) {
+			return new Response(
+				JSON.stringify({ 
+					error: `Draft is locked for week ${week} - games involving selected teams have started` 
+				}), 
+				{ status: 400 }
+			);
+		}
+
 		// Check if the team's game has already started
 		const teamGame = await db
 			.select({

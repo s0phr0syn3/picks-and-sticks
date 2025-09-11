@@ -57,6 +57,7 @@ export const weeks = sqliteTable('weeks', {
 	id: integer('id').primaryKey(),
 	weekNumber: integer('week_number').notNull().unique(),
 	punishment: text('punishment'),
+	isDraftLocked: integer('is_draft_locked', { mode: 'boolean' }).notNull().default(false),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 	updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull()
 });

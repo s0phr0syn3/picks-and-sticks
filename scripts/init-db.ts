@@ -112,6 +112,7 @@ async function initDatabase() {
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				week_number INTEGER NOT NULL UNIQUE,
 				punishment TEXT,
+				is_draft_locked INTEGER NOT NULL DEFAULT 0,
 				created_at INTEGER NOT NULL,
 				updated_at INTEGER NOT NULL
 			)

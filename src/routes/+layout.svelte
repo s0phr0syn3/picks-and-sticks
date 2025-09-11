@@ -6,6 +6,7 @@
 	
 	export let data
 	$: session = data.session
+	$: currentWeek = data.currentWeek || 1
 	
 	// Redirect to sign in if not authenticated (except for auth pages)
 	onMount(() => {
@@ -41,9 +42,9 @@
 							<span class="text-xl font-bold text-gray-800">Picks and Sticks</span>
 						</a>
 						<nav class="hidden md:flex space-x-6 ml-8">
-							<a href="/picks/1" class="text-gray-600 hover:text-gray-800 transition-colors">Picks</a>
-							<a href="/draft/1" class="text-gray-600 hover:text-gray-800 transition-colors">Draft</a>
-							<a href="/scoreboard/1" class="text-gray-600 hover:text-gray-800 transition-colors">
+							<a href="/picks/{currentWeek}" class="text-gray-600 hover:text-gray-800 transition-colors">Picks</a>
+							<a href="/draft/{currentWeek}" class="text-gray-600 hover:text-gray-800 transition-colors">Draft</a>
+							<a href="/scoreboard/{currentWeek}" class="text-gray-600 hover:text-gray-800 transition-colors">
 								<span class="flex items-center space-x-1">
 									<span>📊</span>
 									<span>Scoreboard</span>
