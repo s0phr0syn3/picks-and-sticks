@@ -268,13 +268,15 @@ export const getPicksForWeek = (week: number) => {
 export const getTotalPointsForWeekByUser = (week: number) => {
 	const picksForWeek = getPicksForWeek(week);
 
-	const userPoints: Record<number, { fullName: string; totalPoints: number }> = {};
+	const userPoints: Record<string, { fullName: string; totalPoints: number }> = {};
 
 	picksForWeek.forEach((pick) => {
-		if (userPoints[pick.userId]) {
-			userPoints[pick.userId].totalPoints += pick.points;
+		const userIdKey = String(pick.userId);
+		
+		if (userPoints[userIdKey]) {
+			userPoints[userIdKey].totalPoints += pick.points;
 		} else {
-			userPoints[pick.userId] = {
+			userPoints[userIdKey] = {
 				fullName: pick.fullName,
 				totalPoints: pick.points || 0
 			};
@@ -283,15 +285,11 @@ export const getTotalPointsForWeekByUser = (week: number) => {
 
 	const sortedPoints = Object.entries(userPoints)
 		.map(([userId, { fullName, totalPoints }]) => ({
-			userId: parseInt(userId, 10),
+			userId: userId,
 			fullName,
 			totalPoints
 		}))
-		.sort((a, b) => b.totalPoints - a.totalPoints);
-
-	if (sortedPoints.length === 0) {
-		console.log(`No user points for week ${week}`);
-	}
+		.sort((a, b) => a.totalPoints - b.totalPoints);
 
 	return sortedPoints;
 };
@@ -308,6 +306,7 @@ export const getPickOrderForWeek = (week: number) => {
 
 	while (priorWeek > 0) {
 		const userPoints = getTotalPointsForWeekByUser(priorWeek);
+		console.log(`Week ${week}: Getting user points for prior week ${priorWeek}:`, userPoints);
 
 		if (userPoints.length > 0) {
 			const userIds = userPoints.map((user) => user.userId);
@@ -320,11 +319,16 @@ export const getPickOrderForWeek = (week: number) => {
 				.where(inArray(users.id, userIds))
 				.all();
 
-			const orderedUsers = userPoints
-				.sort((a, b) => a.totalPoints - b.totalPoints)
+			console.log(`Week ${week}: User database lookup:`, userOrder);
+
+			const sortedUserPoints = userPoints.sort((a, b) => a.totalPoints - b.totalPoints);
+			console.log(`Week ${week}: Sorted user points (lowest first):`, sortedUserPoints);
+
+			const orderedUsers = sortedUserPoints
 				.map((point) => userOrder.find((user) => user.userId === point.userId))
 				.filter((user): user is { userId: number; fullName: string } => user !== undefined);
 
+			console.log(`Week ${week}: Final ordered users:`, orderedUsers);
 			return buildFullPickOrder(orderedUsers);
 		}
 
