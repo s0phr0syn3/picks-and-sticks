@@ -294,6 +294,15 @@ export const getTotalPointsForWeekByUser = (week: number) => {
 	return sortedPoints;
 };
 
+export const getWeekWinner = (week: number): { userId: string; fullName: string; totalPoints: number } | null => {
+	const userPoints = getTotalPointsForWeekByUser(week);
+	if (userPoints.length === 0) {
+		return null;
+	}
+	// Return the user with the highest points (last in the sorted array since it's sorted lowest to highest)
+	return userPoints[userPoints.length - 1];
+};
+
 export const getPickOrderForWeek = (week: number) => {
 	// Week 1 has no prior week so randomize the pick order
 	if (week === 1) {

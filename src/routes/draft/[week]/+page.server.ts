@@ -3,9 +3,11 @@ import { db } from '$lib/server/db';
 import { weeks } from '$lib/server/models';
 import { eq } from 'drizzle-orm';
 import { fail } from '@sveltejs/kit';
+import { getWeekWinner } from '$lib/server/queries';
 
-export const load: PageServerLoad = async ({ params, fetch }) => {
+export const load: PageServerLoad = async ({ params, fetch, locals }) => {
 	const week = parseInt(params.week, 10) || 1;
+	const currentUserId = locals.user?.id;
 
 	const response = await fetch(`/api/draft/${week}/select-team`);
 
@@ -39,24 +41,44 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
 		currentWeekPunishment = currentWeek.punishment;
 	}
 
+	// Check if current user is the winner of the previous week (can set punishment)
+	let canSetPunishment = false;
+	let previousWeekWinner = null;
+	if (week > 1 && currentUserId) {
+		previousWeekWinner = getWeekWinner(week - 1);
+		canSetPunishment = previousWeekWinner?.userId === currentUserId;
+	}
+
 	return {
 		draftState: data.draftState,
 		availableTeams: data.availableTeams,
 		unavailableTeams: data.unavailableTeams || [],
 		week,
 		previousWeekPunishment,
-		currentWeekPunishment
+		currentWeekPunishment,
+		canSetPunishment,
+		previousWeekWinner: previousWeekWinner?.fullName || null,
+		currentUserId
 	};
 };
 
 export const actions: Actions = {
-	updatePunishment: async ({ params, request }) => {
+	updatePunishment: async ({ params, request, locals }) => {
 		const week = parseInt(params.week, 10);
 		const data = await request.formData();
 		const punishment = data.get('punishment') as string;
+		const currentUserId = locals.user?.id;
 		
 		if (!week || week < 1 || week > 18) {
 			return fail(400, { error: 'Invalid week number' });
+		}
+
+		// Check if user is allowed to set punishment (must be previous week's winner)
+		if (week > 1 && currentUserId) {
+			const previousWeekWinner = getWeekWinner(week - 1);
+			if (previousWeekWinner?.userId !== currentUserId) {
+				return fail(403, { error: 'Only the winner of the previous week can set the punishment' });
+			}
 		}
 		
 		try {

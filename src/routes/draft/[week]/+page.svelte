@@ -179,9 +179,23 @@
 				<span class="text-sm text-gray-600">For Week {week + 1} Draft</span>
 			</div>
 			
-			<div class="text-sm text-gray-600 mb-4">
-				<p><strong>Note:</strong> This punishment will be shown during Week {week + 1}'s draft and awarded to whoever has the lowest points from Week {week}.</p>
-			</div>
+			{#if data.canSetPunishment}
+				<div class="text-sm text-gray-600 mb-4">
+					<p><strong>🏆 Congratulations!</strong> As the winner of Week {week - 1}, you can set the punishment for this week.</p>
+					<p class="mt-1">This punishment will be shown during Week {week + 1}'s draft and awarded to whoever has the lowest points from Week {week}.</p>
+				</div>
+			{:else if data.previousWeekWinner}
+				<div class="text-sm text-gray-600 mb-4">
+					<p><strong>Note:</strong> Only {data.previousWeekWinner} (winner of Week {week - 1}) can set the punishment for this week.</p>
+					{#if data.currentWeekPunishment}
+						<p class="mt-1">The punishment will be awarded to whoever has the lowest points from Week {week}.</p>
+					{/if}
+				</div>
+			{:else}
+				<div class="text-sm text-gray-600 mb-4">
+					<p><strong>Note:</strong> This punishment will be shown during Week {week + 1}'s draft and awarded to whoever has the lowest points from Week {week}.</p>
+				</div>
+			{/if}
 
 			{#if data.currentWeekPunishment}
 				<div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -190,45 +204,54 @@
 				</div>
 			{/if}
 
-			<form method="POST" action="?/updatePunishment" use:enhance class="space-y-4">
-				<div>
-					<label for="punishment" class="block text-sm font-medium text-gray-700 mb-2">
-						{data.currentWeekPunishment ? 'Update' : 'Set'} Punishment:
-					</label>
-					<textarea
-						id="punishment"
-						name="punishment"
-						rows="3"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-						placeholder="Enter the punishment for the player with the lowest points this week..."
-						value={data.currentWeekPunishment}
-					></textarea>
-				</div>
-				<div class="flex items-center space-x-3">
-					<button
-						type="submit"
-						class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-					>
-						{data.currentWeekPunishment ? 'Update' : 'Set'} Punishment
-					</button>
-					{#if data.currentWeekPunishment}
-						<form method="POST" action="?/updatePunishment" use:enhance class="inline">
-							<input type="hidden" name="punishment" value="" />
-							<button
-								type="submit"
-								class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-								on:click={(e) => {
-									if (!confirm('Clear the punishment for this week?')) {
-										e.preventDefault();
-									}
-								}}
-							>
-								Clear Punishment
-							</button>
-						</form>
+			{#if data.canSetPunishment}
+				<form method="POST" action="?/updatePunishment" use:enhance class="space-y-4">
+					<div>
+						<label for="punishment" class="block text-sm font-medium text-gray-700 mb-2">
+							{data.currentWeekPunishment ? 'Update' : 'Set'} Punishment:
+						</label>
+						<textarea
+							id="punishment"
+							name="punishment"
+							rows="3"
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+							placeholder="Enter the punishment for the player with the lowest points this week..."
+							value={data.currentWeekPunishment}
+						></textarea>
+					</div>
+					<div class="flex items-center space-x-3">
+						<button
+							type="submit"
+							class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+						>
+							{data.currentWeekPunishment ? 'Update' : 'Set'} Punishment
+						</button>
+						{#if data.currentWeekPunishment}
+							<form method="POST" action="?/updatePunishment" use:enhance class="inline">
+								<input type="hidden" name="punishment" value="" />
+								<button
+									type="submit"
+									class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+									on:click={(e) => {
+										if (!confirm('Clear the punishment for this week?')) {
+											e.preventDefault();
+										}
+									}}
+								>
+									Clear Punishment
+								</button>
+							</form>
+						{/if}
+					</div>
+				</form>
+			{:else if !data.currentWeekPunishment}
+				<div class="p-4 bg-gray-50 border border-gray-200 rounded-lg text-gray-600">
+					<p class="text-sm">No punishment has been set for this week yet.</p>
+					{#if data.previousWeekWinner}
+						<p class="text-sm mt-1">Waiting for {data.previousWeekWinner} to set the punishment.</p>
 					{/if}
 				</div>
-			</form>
+			{/if}
 		</div>
 
 		{#if isDraftReady}
