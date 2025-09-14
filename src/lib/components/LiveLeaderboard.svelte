@@ -311,13 +311,11 @@
 												</div>
 											</div>
 											<div class="text-right">
-												{#if pick.points !== null && pick.points !== undefined}
+												{#if pick.isComplete}
 													<div class="font-bold {pick.points > 0 ? 'text-green-600' : 'text-gray-600'}">
 														{pick.points} pts
 													</div>
-													{#if pick.isComplete}
-														<div class="text-xs text-gray-500">Final</div>
-													{/if}
+													<div class="text-xs text-gray-500">Final</div>
 												{:else}
 													<div class="text-sm text-gray-500">
 														{getGameStatusForPick(pick)}
