@@ -31,6 +31,8 @@
 		awayTeamName?: string;
 		homeTeamId?: number;
 		awayTeamId?: number;
+		quarter?: string;
+		timeRemaining?: string;
 	}
 
 	interface GameStatus {
@@ -133,6 +135,57 @@
 		
 		return '';
 	}
+	
+	function getGameStatusForPick(pick: PickDetail): string {
+		if (pick.isComplete) {
+			return 'Final';
+		}
+		
+		if (pick.isLive && pick.quarter && pick.timeRemaining) {
+			return `${pick.quarter} - ${pick.timeRemaining}`;
+		} else if (pick.isLive) {
+			return 'Live';
+		}
+		
+		// Show game date/time for upcoming games
+		if (pick.gameDate) {
+			const gameTime = new Date(pick.gameDate);
+			const now = new Date();
+			
+			// Always show day of week and time to distinguish games across different days
+			const day = gameTime.toLocaleDateString([], { weekday: 'short' });
+			const time = gameTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+			
+			// If game is today, emphasize it
+			if (gameTime.toDateString() === now.toDateString()) {
+				return `Today ${time}`;
+			}
+			
+			// If game is tomorrow
+			const tomorrow = new Date(now);
+			tomorrow.setDate(tomorrow.getDate() + 1);
+			if (gameTime.toDateString() === tomorrow.toDateString()) {
+				return `Tomorrow ${time}`;
+			}
+			
+			// For all other games within the current season, show day and time
+			const diffDays = Math.ceil((gameTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+			if (diffDays <= 14 && diffDays >= -1) {
+				return `${day} ${time}`;
+			}
+			
+			// For games further out, show full date
+			return gameTime.toLocaleDateString([], { 
+				weekday: 'short',
+				month: 'short', 
+				day: 'numeric',
+				hour: 'numeric', 
+				minute: '2-digit' 
+			});
+		}
+		
+		return 'TBD';
+	}
 
 	$: liveGamesCount = games.filter(g => g.isLive).length;
 	$: completedGamesCount = games.filter(g => g.isComplete).length;
@@ -228,14 +281,18 @@
 								<h4 class="font-semibold text-gray-800 mb-3">Picks</h4>
 								<div class="space-y-2">
 									{#each player.picks.sort((a, b) => {
-									// First sort by points (completed games first, highest points)
+									// First priority: Live games
+									if (a.isLive && !b.isLive) return -1;
+									if (!a.isLive && b.isLive) return 1;
+									
+									// Second priority: Completed games with points (highest first)
 									if (a.points !== null && a.points !== undefined && b.points !== null && b.points !== undefined) {
 										return b.points - a.points;
 									}
 									if (a.points !== null && a.points !== undefined) return -1;
 									if (b.points !== null && b.points !== undefined) return 1;
 									
-									// If neither has points, sort by game date/time (if available)
+									// Third priority: Sort by game date/time (earliest first)
 									if (a.gameDate && b.gameDate) {
 										return new Date(a.gameDate).getTime() - new Date(b.gameDate).getTime();
 									}
@@ -258,8 +315,16 @@
 													<div class="font-bold {pick.points > 0 ? 'text-green-600' : 'text-gray-600'}">
 														{pick.points} pts
 													</div>
+													{#if pick.isComplete}
+														<div class="text-xs text-gray-500">Final</div>
+													{/if}
 												{:else}
-													<div class="text-sm text-gray-500">Game pending</div>
+													<div class="text-sm text-gray-500">
+														{getGameStatusForPick(pick)}
+													</div>
+													{#if pick.isLive}
+														<div class="text-xs text-red-500 animate-pulse">● Live</div>
+													{/if}
 												{/if}
 											</div>
 										</div>

@@ -454,19 +454,29 @@ export class ESPNLiveScoringService {
 					...pick,
 					homeTeamName: null,
 					awayTeamName: null,
-					gameDate: null
+					gameDate: null,
+					isLive: false,
+					isComplete: false,
+					quarter: null,
+					timeRemaining: null
 				};
 			}
 			
 			try {
-				// Find the schedule for this team
-				const schedule = db
+				// Find the schedule for this team with live game info
+				const gameInfo = db
 					.select({
 						homeTeamId: schedules.homeTeamId,
 						awayTeamId: schedules.awayTeamId,
-						gameDate: schedules.gameDate
+						gameDate: schedules.gameDate,
+						eventId: schedules.eventId,
+						isLive: liveScores.isLive,
+						isComplete: liveScores.isComplete,
+						quarter: liveScores.quarter,
+						timeRemaining: liveScores.timeRemaining
 					})
 					.from(schedules)
+					.leftJoin(liveScores, eq(schedules.eventId, liveScores.eventId))
 					.where(
 						and(
 							eq(schedules.week, week),
@@ -478,24 +488,32 @@ export class ESPNLiveScoringService {
 					)
 					.get();
 				
-				if (!schedule) {
+				if (!gameInfo) {
 					return {
 						...pick,
 						homeTeamName: null,
 						awayTeamName: null,
-						gameDate: null
+						gameDate: null,
+						isLive: false,
+						isComplete: false,
+						quarter: null,
+						timeRemaining: null
 					};
 				}
 				
 				// Get team names
-				const homeTeam = db.select({ name: teams.name }).from(teams).where(eq(teams.teamId, schedule.homeTeamId)).get();
-				const awayTeam = db.select({ name: teams.name }).from(teams).where(eq(teams.teamId, schedule.awayTeamId)).get();
+				const homeTeam = db.select({ name: teams.name }).from(teams).where(eq(teams.teamId, gameInfo.homeTeamId)).get();
+				const awayTeam = db.select({ name: teams.name }).from(teams).where(eq(teams.teamId, gameInfo.awayTeamId)).get();
 				
 				return {
 					...pick,
 					homeTeamName: homeTeam?.name || null,
 					awayTeamName: awayTeam?.name || null,
-					gameDate: schedule.gameDate
+					gameDate: gameInfo.gameDate,
+					isLive: gameInfo.isLive || false,
+					isComplete: gameInfo.isComplete || false,
+					quarter: gameInfo.quarter,
+					timeRemaining: gameInfo.timeRemaining
 				};
 			} catch (error) {
 				console.error(`Error enhancing pick ${pick.id}:`, error.message);
@@ -503,7 +521,11 @@ export class ESPNLiveScoringService {
 					...pick,
 					homeTeamName: null,
 					awayTeamName: null,
-					gameDate: null
+					gameDate: null,
+					isLive: false,
+					isComplete: false,
+					quarter: null,
+					timeRemaining: null
 				};
 			}
 		});
