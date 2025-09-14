@@ -10,12 +10,21 @@
 	const showLiveScores = true; // You can make this conditional based on day/time
 
 	let week: number = data.week;
-	let picks: PickWithDetails[] = data.picks;
-	let totalPoints: UserWithPoints[] = data.totalPoints;
+	let picks: PickWithDetails[] = data.picks || [];
+	let draftState: PickWithDetails[] = data.draftState || [];
+	let totalPoints: UserWithPoints[] = data.totalPoints || [];
+	let hasTeamSelections: boolean = data.hasTeamSelections || false;
 	let updateInterval: NodeJS.Timeout;
+
+	// Determine what to show based on the data
+	let showingDraftState = !hasTeamSelections && draftState.length > 0;
+	let showingCompletedPicks = hasTeamSelections && picks.length > 0;
 
 	if (!Array.isArray(picks)) {
 		picks = [];
+	}
+	if (!Array.isArray(draftState)) {
+		draftState = [];
 	}
 
 	function changeWeek(direction: number) {
@@ -33,10 +42,17 @@
 		try {
 			const response = await fetch(`/api/picks/${week}`);
 			if (response.ok) {
-				const data = await response.json();
-				if (data.success && data.data) {
-					picks = Array.isArray(data.data.picks) ? data.data.picks : [];
-					totalPoints = Array.isArray(data.data.totalPoints) ? data.data.totalPoints : [];
+				const responseData = await response.json();
+				if (responseData.success && responseData.data) {
+					const data = responseData.data;
+					picks = Array.isArray(data.picks) ? data.picks : [];
+					draftState = Array.isArray(data.draftState) ? data.draftState : [];
+					totalPoints = Array.isArray(data.totalPoints) ? data.totalPoints : [];
+					hasTeamSelections = data.hasTeamSelections || false;
+					
+					// Update display state
+					showingDraftState = !hasTeamSelections && draftState.length > 0;
+					showingCompletedPicks = hasTeamSelections && picks.length > 0;
 				}
 			}
 		} catch (error) {
@@ -65,7 +81,8 @@
 	}
 
 	// Group picks by round for better display
-	$: roundGroups = picks.reduce((groups, pick) => {
+	$: displayData = showingCompletedPicks ? picks : draftState;
+	$: roundGroups = displayData.reduce((groups, pick) => {
 		const round = pick.round;
 		if (!groups[round]) {
 			groups[round] = [];
@@ -144,7 +161,7 @@
 		{/if}
 		
 		<!-- Status Banner -->
-		{#if picks.length > 0 && picks.some((pick) => pick.teamId === null)}
+		{#if showingDraftState}
 			<!-- Draft in Progress -->
 			<div class="bg-gradient-to-r from-orange-400 to-red-500 text-white p-6 rounded-xl shadow-lg mb-8">
 				<div class="text-center">
@@ -155,7 +172,7 @@
 					</a>
 				</div>
 			</div>
-		{:else if picks.length > 0 && picks[0].teamId}
+		{:else if showingCompletedPicks}
 			<!-- Draft Complete -->
 			<div class="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg mb-8">
 				<div class="text-center">
@@ -179,7 +196,7 @@
 		<div class="grid lg:grid-cols-3 gap-8">
 			<!-- Draft Results -->
 			<div class="lg:col-span-2">
-				{#if picks.length > 0}
+				{#if showingCompletedPicks || showingDraftState}
 					<div class="space-y-6">
 						{#each Object.entries(roundGroups) as [round, roundPicks]}
 							<div class="bg-white rounded-xl shadow-lg overflow-hidden">

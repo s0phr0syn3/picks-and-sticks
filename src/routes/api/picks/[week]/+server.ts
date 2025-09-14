@@ -17,12 +17,26 @@ export const GET: RequestHandler = async ({ params }) => {
 		const picksForWeek = getPicksForWeek(week);
 		const totalPoints = getTotalPointsForWeekByUser(week);
 
+		// Check if we have actual team selections (not just draft state)
+		const picksWithTeams = picksForWeek.filter(pick => pick.teamId !== null);
+
+		if (picksWithTeams.length > 0) {
+			return successResponse({
+				picks: picksForWeek, // Return all picks but indicate we have team selections
+				totalPoints,
+				week,
+				hasTeamSelections: true
+			}, `Retrieved ${picksForWeek.length} picks for week ${week}`);
+		}
+
+		// If we have picks but no team selections, it's a draft in progress
 		if (picksForWeek.length > 0) {
 			return successResponse({
-				picks: picksForWeek,
+				draftState: picksForWeek,
 				totalPoints,
-				week
-			}, `Retrieved ${picksForWeek.length} picks for week ${week}`);
+				week,
+				hasTeamSelections: false
+			}, `Retrieved draft state for week ${week}`);
 		}
 
 		const pickOrder = getPickOrderForWeek(week);
