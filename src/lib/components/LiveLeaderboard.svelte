@@ -311,18 +311,20 @@
 												</div>
 											</div>
 											<div class="text-right">
-												{#if pick.isComplete}
+												{#if pick.points !== null && pick.points !== undefined}
 													<div class="font-bold {pick.points > 0 ? 'text-green-600' : 'text-gray-600'}">
 														{pick.points} pts
 													</div>
-													<div class="text-xs text-gray-500">Final</div>
-												{:else}
-													<div class="text-sm text-gray-500">
+												{/if}
+												<div class="text-sm {pick.isComplete ? 'text-gray-500' : pick.isLive ? 'text-red-600' : 'text-gray-500'}">
+													{#if pick.isComplete}
+														Final
+													{:else}
 														{getGameStatusForPick(pick)}
-													</div>
-													{#if pick.isLive}
-														<div class="text-xs text-red-500 animate-pulse">● Live</div>
 													{/if}
+												</div>
+												{#if pick.isLive}
+													<div class="text-xs text-red-500 animate-pulse">● Live</div>
 												{/if}
 											</div>
 										</div>
