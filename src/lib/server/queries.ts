@@ -606,8 +606,39 @@ export const getPicksWithGameInfo = (week: number) => {
 
 	// Get game info separately for each pick
 	const picksWithGameInfo = picksResult.map(pick => {
-		if (!pick.teamId) {
-			return { ...pick, gameDate: null, isLive: false, isComplete: false, homeScore: null, awayScore: null, homeTeamName: null, awayTeamName: null };
+		// Defensive check for pick object
+		if (!pick || typeof pick !== 'object') {
+			console.error('Invalid pick object:', pick);
+			return null;
+		}
+
+		// Create base pick object with safe defaults
+		const basePick = {
+			id: pick.id || 0,
+			userId: pick.userId || '',
+			fullName: pick.fullName || '',
+			teamId: pick.teamId || null,
+			team: pick.team || '',
+			assignedById: pick.assignedById || null,
+			assignedByFullName: pick.assignedByFullName || null,
+			round: pick.round || 0,
+			orderInRound: pick.orderInRound || 0,
+			overallPickOrder: pick.overallPickOrder || 0,
+			week: pick.week || 0,
+			points: pick.points || 0
+		};
+
+		if (!basePick.teamId) {
+			return {
+				...basePick,
+				gameDate: null,
+				isLive: false,
+				isComplete: false,
+				homeScore: null,
+				awayScore: null,
+				homeTeamName: null,
+				awayTeamName: null
+			};
 		}
 
 		const gameInfo = db
@@ -626,26 +657,42 @@ export const getPicksWithGameInfo = (week: number) => {
 			.where(and(
 				eq(schedules.week, week),
 				or(
-					eq(schedules.homeTeamId, pick.teamId),
-					eq(schedules.awayTeamId, pick.teamId)
+					eq(schedules.homeTeamId, basePick.teamId),
+					eq(schedules.awayTeamId, basePick.teamId)
 				)
 			))
 			.get();
 
 		if (!gameInfo) {
-			return { ...pick, gameDate: null, isLive: false, isComplete: false, homeScore: null, awayScore: null, homeTeamName: null, awayTeamName: null };
+			return {
+				...basePick,
+				gameDate: null,
+				isLive: false,
+				isComplete: false,
+				homeScore: null,
+				awayScore: null,
+				homeTeamName: null,
+				awayTeamName: null
+			};
 		}
 
 		// Get team names for the game
-		const homeTeam = db.select({ name: teams.name }).from(teams).where(eq(teams.teamId, gameInfo.homeTeamId)).get();
-		const awayTeam = db.select({ name: teams.name }).from(teams).where(eq(teams.teamId, gameInfo.awayTeamId)).get();
+		let homeTeam = null;
+		let awayTeam = null;
+		
+		if (gameInfo.homeTeamId) {
+			homeTeam = db.select({ name: teams.name }).from(teams).where(eq(teams.teamId, gameInfo.homeTeamId)).get();
+		}
+		if (gameInfo.awayTeamId) {
+			awayTeam = db.select({ name: teams.name }).from(teams).where(eq(teams.teamId, gameInfo.awayTeamId)).get();
+		}
 
 		return {
-			...pick,
+			...basePick,
 			gameDate: gameInfo.gameDate,
 			eventId: gameInfo.eventId,
-			isLive: gameInfo.isLive,
-			isComplete: gameInfo.isComplete,
+			isLive: gameInfo.isLive || false,
+			isComplete: gameInfo.isComplete || false,
 			homeScore: gameInfo.homeScore,
 			awayScore: gameInfo.awayScore,
 			homeTeamId: gameInfo.homeTeamId,
@@ -653,7 +700,7 @@ export const getPicksWithGameInfo = (week: number) => {
 			homeTeamName: homeTeam?.name || null,
 			awayTeamName: awayTeam?.name || null
 		};
-	});
+	}).filter(pick => pick !== null);
 
 	return picksWithGameInfo;
 };

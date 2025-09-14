@@ -1,6 +1,6 @@
 import { db } from './db';
 import { schedules, picks, users, liveScores, userWeeklyScores, teams } from './models';
-import { eq, and, sql, inArray } from 'drizzle-orm';
+import { eq, and, or, sql, inArray } from 'drizzle-orm';
 import { getTotalPointsForWeekByUser, getPicksForWeek, getPicksWithGameInfo } from './queries';
 
 interface ESPNEvent {
@@ -444,14 +444,69 @@ export class ESPNLiveScoringService {
 		// Get total points from the queries instead of userWeeklyScores table
 		const userPoints = getTotalPointsForWeekByUser(week);
 		
-		// Try to get picks with game info, fall back to basic picks if there's an error
-		let picksWithInfo;
-		try {
-			picksWithInfo = getPicksWithGameInfo(week);
-		} catch (error) {
-			console.log('Error getting picks with game info, using basic picks:', error);
-			picksWithInfo = getPicksForWeek(week);
-		}
+		// Get basic picks and enhance them with opponent information
+		let picksWithInfo = getPicksForWeek(week);
+		
+		// Enhance picks with opponent team information
+		picksWithInfo = picksWithInfo.map(pick => {
+			if (!pick.teamId) {
+				return {
+					...pick,
+					homeTeamName: null,
+					awayTeamName: null,
+					gameDate: null
+				};
+			}
+			
+			try {
+				// Find the schedule for this team
+				const schedule = db
+					.select({
+						homeTeamId: schedules.homeTeamId,
+						awayTeamId: schedules.awayTeamId,
+						gameDate: schedules.gameDate
+					})
+					.from(schedules)
+					.where(
+						and(
+							eq(schedules.week, week),
+							or(
+								eq(schedules.homeTeamId, pick.teamId),
+								eq(schedules.awayTeamId, pick.teamId)
+							)
+						)
+					)
+					.get();
+				
+				if (!schedule) {
+					return {
+						...pick,
+						homeTeamName: null,
+						awayTeamName: null,
+						gameDate: null
+					};
+				}
+				
+				// Get team names
+				const homeTeam = db.select({ name: teams.name }).from(teams).where(eq(teams.teamId, schedule.homeTeamId)).get();
+				const awayTeam = db.select({ name: teams.name }).from(teams).where(eq(teams.teamId, schedule.awayTeamId)).get();
+				
+				return {
+					...pick,
+					homeTeamName: homeTeam?.name || null,
+					awayTeamName: awayTeam?.name || null,
+					gameDate: schedule.gameDate
+				};
+			} catch (error) {
+				console.error(`Error enhancing pick ${pick.id}:`, error.message);
+				return {
+					...pick,
+					homeTeamName: null,
+					awayTeamName: null,
+					gameDate: null
+				};
+			}
+		});
 		
 		// Group picks by user
 		const userPicksMap: Record<string, any[]> = {};
