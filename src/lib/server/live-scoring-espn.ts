@@ -444,14 +444,20 @@ export class ESPNLiveScoringService {
 		// Get total points from the queries instead of userWeeklyScores table
 		const userPoints = getTotalPointsForWeekByUser(week);
 		
-		// Get basic picks first (without complex game info for now)
-		const basicPicks = getPicksForWeek(week);
+		// Try to get picks with game info, fall back to basic picks if there's an error
+		let picksWithInfo;
+		try {
+			picksWithInfo = getPicksWithGameInfo(week);
+		} catch (error) {
+			console.log('Error getting picks with game info, using basic picks:', error);
+			picksWithInfo = getPicksForWeek(week);
+		}
 		
 		// Group picks by user
 		const userPicksMap: Record<string, any[]> = {};
 		const userGameCounts: Record<string, { completedGames: number; totalGames: number }> = {};
 		
-		basicPicks.forEach(pick => {
+		picksWithInfo.forEach(pick => {
 			const userId = pick.userId;
 			if (!userPicksMap[userId]) {
 				userPicksMap[userId] = [];

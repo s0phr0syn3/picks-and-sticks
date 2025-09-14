@@ -27,6 +27,10 @@
 		gameDate?: string;
 		isLive?: boolean;
 		isComplete?: boolean;
+		homeTeamName?: string;
+		awayTeamName?: string;
+		homeTeamId?: number;
+		awayTeamId?: number;
 	}
 
 	interface GameStatus {
@@ -111,6 +115,23 @@
 			return 'Live';
 		}
 		return 'Not Started';
+	}
+	
+	function getOpponentText(pick: PickDetail): string {
+		if (!pick.homeTeamName || !pick.awayTeamName || !pick.team) {
+			return '';
+		}
+		
+		// Check if the selected team is home or away
+		if (pick.team === pick.homeTeamName) {
+			// Selected team is home, show "vs opponent"
+			return `vs ${pick.awayTeamName}`;
+		} else if (pick.team === pick.awayTeamName) {
+			// Selected team is away, show "@ opponent"
+			return `@ ${pick.homeTeamName}`;
+		}
+		
+		return '';
 	}
 
 	$: liveGamesCount = games.filter(g => g.isLive).length;
@@ -206,13 +227,30 @@
 							<div class="border-t border-gray-200 p-4 bg-white">
 								<h4 class="font-semibold text-gray-800 mb-3">Picks</h4>
 								<div class="space-y-2">
-									{#each player.picks.sort((a, b) => a.round - b.round) as pick}
+									{#each player.picks.sort((a, b) => {
+									// First sort by points (completed games first, highest points)
+									if (a.points !== null && a.points !== undefined && b.points !== null && b.points !== undefined) {
+										return b.points - a.points;
+									}
+									if (a.points !== null && a.points !== undefined) return -1;
+									if (b.points !== null && b.points !== undefined) return 1;
+									
+									// If neither has points, sort by game date/time (if available)
+									if (a.gameDate && b.gameDate) {
+										return new Date(a.gameDate).getTime() - new Date(b.gameDate).getTime();
+									}
+									
+									// Fallback to round order
+									return a.round - b.round;
+								}) as pick}
 										<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
 											<div class="flex items-center space-x-3">
-												<div class="text-sm text-gray-500">R{pick.round}</div>
+												<div class="text-sm text-gray-500">{pick.round}</div>
 												<div>
 													<div class="font-medium text-gray-900">{pick.team || 'TBD'}</div>
-													<div class="text-xs text-gray-500">Pick #{pick.overallPickOrder}</div>
+													<div class="text-xs text-gray-500">
+														{getOpponentText(pick) || `Pick #${pick.overallPickOrder}`}
+													</div>
 												</div>
 											</div>
 											<div class="text-right">
