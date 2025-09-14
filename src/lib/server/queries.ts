@@ -582,3 +582,78 @@ export const getCurrentWeek = () => {
 	console.log(`No current week found, defaulting to week 1`);
 	return 1;
 };
+
+export const getPicksWithGameInfo = (week: number) => {
+	// Get picks with team information and game details
+	// Use a simpler approach without the complex joins for now
+	const picksResult = db
+		.select({
+			id: picks.id,
+			userId: picks.userId,
+			fullName: sql<string>`${users.firstName} || ' ' || ${users.lastName}`,
+			teamId: picks.teamId,
+			team: teams.name,
+			round: picks.round,
+			orderInRound: picks.orderInRound,
+			overallPickOrder: picks.overallPickOrder,
+			points: picks.points
+		})
+		.from(picks)
+		.innerJoin(users, eq(picks.userId, users.id))
+		.leftJoin(teams, eq(picks.teamId, teams.teamId))
+		.where(eq(picks.week, week))
+		.all();
+
+	// Get game info separately for each pick
+	const picksWithGameInfo = picksResult.map(pick => {
+		if (!pick.teamId) {
+			return { ...pick, gameDate: null, isLive: false, isComplete: false, homeScore: null, awayScore: null, homeTeamName: null, awayTeamName: null };
+		}
+
+		const gameInfo = db
+			.select({
+				gameDate: schedules.gameDate,
+				eventId: schedules.eventId,
+				isLive: liveScores.isLive,
+				isComplete: liveScores.isComplete,
+				homeScore: liveScores.homeScore,
+				awayScore: liveScores.awayScore,
+				homeTeamId: schedules.homeTeamId,
+				awayTeamId: schedules.awayTeamId
+			})
+			.from(schedules)
+			.leftJoin(liveScores, eq(schedules.eventId, liveScores.eventId))
+			.where(and(
+				eq(schedules.week, week),
+				or(
+					eq(schedules.homeTeamId, pick.teamId),
+					eq(schedules.awayTeamId, pick.teamId)
+				)
+			))
+			.get();
+
+		if (!gameInfo) {
+			return { ...pick, gameDate: null, isLive: false, isComplete: false, homeScore: null, awayScore: null, homeTeamName: null, awayTeamName: null };
+		}
+
+		// Get team names for the game
+		const homeTeam = db.select({ name: teams.name }).from(teams).where(eq(teams.teamId, gameInfo.homeTeamId)).get();
+		const awayTeam = db.select({ name: teams.name }).from(teams).where(eq(teams.teamId, gameInfo.awayTeamId)).get();
+
+		return {
+			...pick,
+			gameDate: gameInfo.gameDate,
+			eventId: gameInfo.eventId,
+			isLive: gameInfo.isLive,
+			isComplete: gameInfo.isComplete,
+			homeScore: gameInfo.homeScore,
+			awayScore: gameInfo.awayScore,
+			homeTeamId: gameInfo.homeTeamId,
+			awayTeamId: gameInfo.awayTeamId,
+			homeTeamName: homeTeam?.name || null,
+			awayTeamName: awayTeam?.name || null
+		};
+	});
+
+	return picksWithGameInfo;
+};

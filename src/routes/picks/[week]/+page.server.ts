@@ -11,5 +11,11 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
 
 	const data = await response.json();
 
-	return { picks: data.picks, totalPoints: data.totalPoints, week };
+	return { 
+		picks: data.data?.picks || [], 
+		draftState: data.data?.draftState || [],
+		totalPoints: data.data?.totalPoints || [], 
+		week: parseInt(week, 10),
+		hasTeamSelections: data.data?.hasTeamSelections || false
+	};
 };

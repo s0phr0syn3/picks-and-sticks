@@ -1,6 +1,7 @@
 import { db } from './db';
 import { schedules, picks, users, liveScores, userWeeklyScores, teams } from './models';
 import { eq, and, sql, inArray } from 'drizzle-orm';
+import { getTotalPointsForWeekByUser, getPicksForWeek, getPicksWithGameInfo } from './queries';
 
 interface ESPNEvent {
 	id: string;
@@ -440,19 +441,42 @@ export class ESPNLiveScoringService {
 	 * Get live leaderboard for a week
 	 */
 	async getLiveLeaderboard(week: number) {
-		return await db
-			.select({
-				userId: userWeeklyScores.userId,
-				fullName: sql<string>`${users.firstName} || ' ' || ${users.lastName}`,
-				currentPoints: userWeeklyScores.currentPoints,
-				completedGames: userWeeklyScores.completedGames,
-				totalGames: userWeeklyScores.totalGames,
-				lastUpdated: userWeeklyScores.lastUpdated
-			})
-			.from(userWeeklyScores)
-			.innerJoin(users, eq(userWeeklyScores.userId, users.id))
-			.where(eq(userWeeklyScores.week, week))
-			.orderBy(sql`current_points DESC`);
+		// Get total points from the queries instead of userWeeklyScores table
+		const userPoints = getTotalPointsForWeekByUser(week);
+		
+		// Get basic picks first (without complex game info for now)
+		const basicPicks = getPicksForWeek(week);
+		
+		// Group picks by user
+		const userPicksMap: Record<string, any[]> = {};
+		const userGameCounts: Record<string, { completedGames: number; totalGames: number }> = {};
+		
+		basicPicks.forEach(pick => {
+			const userId = pick.userId;
+			if (!userPicksMap[userId]) {
+				userPicksMap[userId] = [];
+				userGameCounts[userId] = { completedGames: 0, totalGames: 0 };
+			}
+			
+			userPicksMap[userId].push(pick);
+			userGameCounts[userId].totalGames++;
+			
+			// A game is completed if the pick has been scored (points exist and game is complete)
+			if (pick.points !== null && pick.points !== undefined && pick.points !== 0) {
+				userGameCounts[userId].completedGames++;
+			}
+		});
+		
+		// Combine the data into the expected format
+		return userPoints.map(user => ({
+			userId: user.userId,
+			fullName: user.fullName,
+			currentPoints: user.totalPoints,
+			completedGames: userGameCounts[user.userId]?.completedGames || 0,
+			totalGames: userGameCounts[user.userId]?.totalGames || 4, // Each user should have 4 picks
+			picks: userPicksMap[user.userId] || [],
+			lastUpdated: new Date().toISOString()
+		})).sort((a, b) => b.currentPoints - a.currentPoints);
 	}
 
 	/**

@@ -10,7 +10,23 @@
 		currentPoints: number;
 		completedGames: number;
 		totalGames: number;
+		picks: PickDetail[];
 		lastUpdated: string;
+	}
+
+	interface PickDetail {
+		id: number;
+		userId: string;
+		fullName: string;
+		teamId: number;
+		team: string;
+		round: number;
+		orderInRound: number;
+		overallPickOrder: number;
+		points: number;
+		gameDate?: string;
+		isLive?: boolean;
+		isComplete?: boolean;
 	}
 
 	interface GameStatus {
@@ -34,6 +50,16 @@
 	let loading = false;
 	let error: string | null = null;
 	let updateInterval: number;
+	let expandedUsers: Set<string> = new Set();
+
+	function toggleUserExpanded(userId: string) {
+		if (expandedUsers.has(userId)) {
+			expandedUsers.delete(userId);
+		} else {
+			expandedUsers.add(userId);
+		}
+		expandedUsers = expandedUsers; // Trigger reactivity
+	}
 
 	onMount(() => {
 		if (browser) {
@@ -145,24 +171,64 @@
 		{:else}
 			<div class="space-y-2">
 				{#each leaderboard as player, index}
-					<div class="flex items-center justify-between p-4 rounded-lg border {index === 0 ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50 border-gray-200'}">
-						<div class="flex items-center space-x-3">
-							<div class="w-8 h-8 rounded-full {index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-400' : 'bg-gray-300'} flex items-center justify-center text-white font-bold text-sm">
-								{index + 1}
-							</div>
-							<div>
-								<div class="font-medium text-gray-900">{player.fullName}</div>
-								<div class="text-sm text-gray-500">
-									{player.completedGames}/{player.totalGames} games complete
+					<div class="rounded-lg border {index === 0 ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50 border-gray-200'}">
+						<!-- Player Header (Clickable) -->
+						<button 
+							class="w-full flex items-center justify-between p-4 text-left hover:bg-gray-100 transition-colors rounded-lg"
+							on:click={() => toggleUserExpanded(player.userId)}
+						>
+							<div class="flex items-center space-x-3">
+								<div class="w-8 h-8 rounded-full {index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-400' : 'bg-gray-300'} flex items-center justify-center text-white font-bold text-sm">
+									{index + 1}
+								</div>
+								<div>
+									<div class="font-medium text-gray-900">{player.fullName}</div>
+									<div class="text-sm text-gray-500">
+										{player.completedGames}/{player.totalGames} games complete
+									</div>
 								</div>
 							</div>
-						</div>
-						<div class="text-right">
-							<div class="text-2xl font-bold {index === 0 ? 'text-yellow-700' : 'text-gray-900'}">
-								{player.currentPoints}
+							<div class="flex items-center space-x-3">
+								<div class="text-right">
+									<div class="text-2xl font-bold {index === 0 ? 'text-yellow-700' : 'text-gray-900'}">
+										{player.currentPoints}
+									</div>
+									<div class="text-sm text-gray-500">pts</div>
+								</div>
+								<div class="text-gray-400 transition-transform {expandedUsers.has(player.userId) ? 'rotate-90' : ''}">
+									▶
+								</div>
 							</div>
-							<div class="text-sm text-gray-500">pts</div>
-						</div>
+						</button>
+
+						<!-- Expandable Picks Section -->
+						{#if expandedUsers.has(player.userId)}
+							<div class="border-t border-gray-200 p-4 bg-white">
+								<h4 class="font-semibold text-gray-800 mb-3">Picks</h4>
+								<div class="space-y-2">
+									{#each player.picks.sort((a, b) => a.round - b.round) as pick}
+										<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+											<div class="flex items-center space-x-3">
+												<div class="text-sm text-gray-500">R{pick.round}</div>
+												<div>
+													<div class="font-medium text-gray-900">{pick.team || 'TBD'}</div>
+													<div class="text-xs text-gray-500">Pick #{pick.overallPickOrder}</div>
+												</div>
+											</div>
+											<div class="text-right">
+												{#if pick.points !== null && pick.points !== undefined}
+													<div class="font-bold {pick.points > 0 ? 'text-green-600' : 'text-gray-600'}">
+														{pick.points} pts
+													</div>
+												{:else}
+													<div class="text-sm text-gray-500">Game pending</div>
+												{/if}
+											</div>
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
 					</div>
 				{/each}
 			</div>
