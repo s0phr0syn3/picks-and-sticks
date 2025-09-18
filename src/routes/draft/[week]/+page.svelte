@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { onMount, onDestroy } from 'svelte';
+	import { browser } from '$app/environment';
 	import type { DraftPageData, DraftPick, AvailableTeam } from '$lib/types';
 	import type { ActionData } from './$types';
 
@@ -12,12 +14,106 @@
 	let week: number = data.week;
 	let currentPick = draftState.find((pick) => !pick.teamId);
 	let selectedTeam: AvailableTeam | null = null;
+	let isSubmitting = false;
+	let pollInterval: number;
+	let lastUpdateTime = Date.now();
+	let recentlyUpdatedPicks = new Set<number>();
+	let newPickNotification = '';
+	let notificationTimeout: number;
 	
 	// Check if this is a future week with no meaningful draft data
 	let isDraftReady = draftState && draftState.length > 0;
+	
+	// Check if draft is complete
+	$: draftComplete = draftState.every((pick) => pick.teamId !== null);
 
 	console.log('Current pick:', currentPick);
 	console.log('Available Teams:', availableTeams);
+
+	// Poll for draft updates every 2 seconds
+	async function pollDraftUpdates() {
+		if (!browser || isSubmitting) return;
+		
+		try {
+			const res = await fetch(`/api/draft/${week}/select-team`);
+			if (res.ok) {
+				const data = await res.json();
+				
+				// Check if draft state has changed
+				const hasChanges = JSON.stringify(data.draftState) !== JSON.stringify(draftState);
+				
+				if (hasChanges) {
+					console.log('Draft state updated!');
+					
+					// Detect new picks for visual feedback
+					const oldDraftState = draftState;
+					const newDraftState = data.draftState;
+					
+					// Find newly made picks
+					const newPicks = newDraftState.filter((newPick, index) => {
+						const oldPick = oldDraftState[index];
+						return newPick.teamId && (!oldPick || !oldPick.teamId);
+					});
+					
+					// Add visual feedback for new picks
+					if (newPicks.length > 0) {
+						newPicks.forEach(pick => {
+							recentlyUpdatedPicks.add(pick.id);
+							// Show notification for the most recent pick
+							if (pick.fullName) {
+								newPickNotification = `${pick.fullName} selected ${pick.team}`;
+								if (notificationTimeout) clearTimeout(notificationTimeout);
+								notificationTimeout = setTimeout(() => {
+									newPickNotification = '';
+								}, 4000);
+							}
+						});
+						
+						// Remove highlight after 3 seconds
+						setTimeout(() => {
+							newPicks.forEach(pick => {
+								recentlyUpdatedPicks.delete(pick.id);
+								recentlyUpdatedPicks = recentlyUpdatedPicks; // Trigger reactivity
+							});
+						}, 3000);
+					}
+					
+					draftState = data.draftState;
+					availableTeams = data.availableTeams;
+					unavailableTeams = data.unavailableTeams || [];
+					currentPick = draftState.find((pick) => !pick.teamId);
+					selectedTeam = null; // Reset selection when draft updates
+					lastUpdateTime = Date.now();
+					
+					// If draft is complete, redirect to picks page
+					if (draftState.every((pick) => pick.teamId !== null)) {
+						clearInterval(pollInterval);
+						setTimeout(() => {
+							window.location.href = `/picks/${week}`;
+						}, 2000);
+					}
+				}
+			}
+		} catch (error) {
+			console.error('Error polling draft updates:', error);
+		}
+	}
+
+	onMount(() => {
+		if (browser && isDraftReady && !draftComplete) {
+			// Start polling for updates
+			pollInterval = setInterval(pollDraftUpdates, 2000);
+		}
+	});
+
+	onDestroy(() => {
+		if (pollInterval) {
+			clearInterval(pollInterval);
+		}
+		if (notificationTimeout) {
+			clearTimeout(notificationTimeout);
+		}
+	});
 
 	function goToPicks(week: number) {
 		window.location.href = `/picks/${week}`;
@@ -41,8 +137,9 @@
 	}
 
 	async function pickTeam(pickId: number, teamId: number) {
-		if (!currentPick) return;
+		if (!currentPick || isSubmitting) return;
 
+		isSubmitting = true;
 		try {
 			const res = await fetch(`/api/draft/${week}/select-team`, {
 				method: 'POST',
@@ -51,11 +148,8 @@
 			});
 
 			if (res.ok) {
-				if (!currentPick) {
-					window.location.href = `/picks/${week}`;
-				} else {
-					window.location.reload();
-				}
+				// After successful pick, poll for updates immediately
+				await pollDraftUpdates();
 			} else {
 				const errorData = await res.json();
 				alert(errorData.error || 'Failed to select team');
@@ -64,6 +158,8 @@
 		} catch (error) {
 			console.error(`Error selecting team: ${error}`);
 			alert('Error selecting team. Please try again.');
+		} finally {
+			isSubmitting = false;
 		}
 	}
 </script>
@@ -84,6 +180,12 @@
 					<span class="text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">
 						2025 Season
 					</span>
+					{#if isDraftReady && !draftComplete}
+						<span class="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium flex items-center">
+							<span class="animate-pulse mr-2">🔄</span>
+							Live Updates
+						</span>
+					{/if}
 				</div>
 				
 				<!-- Week Navigation -->
@@ -111,6 +213,16 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- Notification Toast -->
+	{#if newPickNotification}
+		<div class="fixed top-4 right-4 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg animate-bounce">
+			<div class="flex items-center space-x-2">
+				<span>🎯</span>
+				<span>{newPickNotification}</span>
+			</div>
+		</div>
+	{/if}
 
 	<div class="container mx-auto px-6 py-8">
 		<!-- Previous Week Punishment -->
@@ -276,7 +388,7 @@
 							</thead>
 							<tbody class="divide-y divide-gray-200">
 								{#each draftState as pick, index}
-									<tr class="hover:bg-gray-50 transition-colors {pick.teamId === null && pick.id === currentPick?.id ? 'bg-green-50 border-l-4 border-green-500' : ''}">
+									<tr class="hover:bg-gray-50 transition-colors {pick.teamId === null && pick.id === currentPick?.id ? 'bg-green-50 border-l-4 border-green-500' : ''} {recentlyUpdatedPicks.has(pick.id) ? 'bg-yellow-100 border-l-4 border-yellow-500 animate-pulse' : ''}">
 										<td class="py-3 px-4">
 											<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
 												{pick.round}

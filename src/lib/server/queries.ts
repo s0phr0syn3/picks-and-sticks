@@ -311,43 +311,44 @@ export const getPickOrderForWeek = (week: number) => {
 		return buildFullPickOrder(randomOrder);
 	}
 
-	let priorWeek = week - 1;
+	// Only use the immediately previous week, and only if it's complete
+	const priorWeek = week - 1;
+	
+	// Check if the prior week is complete (all games finished)
+	if (!isWeekComplete(priorWeek)) {
+		console.log(`Week ${priorWeek} is not complete yet. Cannot set draft order for week ${week}.`);
+		throw new Error(`Draft order for week ${week} cannot be set until week ${priorWeek} is complete.`);
+	}
+	
+	const userPoints = getTotalPointsForWeekByUser(priorWeek);
+	console.log(`Week ${week}: Getting user points for prior week ${priorWeek}:`, userPoints);
 
-	while (priorWeek > 0) {
-		const userPoints = getTotalPointsForWeekByUser(priorWeek);
-		console.log(`Week ${week}: Getting user points for prior week ${priorWeek}:`, userPoints);
+	if (userPoints.length > 0) {
+		const userIds = userPoints.map((user) => user.userId);
+		const userOrder = db
+			.select({
+				userId: users.id,
+				fullName: sql<string>`${users.firstName} || ' ' || ${users.lastName} AS fullName`
+			})
+			.from(users)
+			.where(inArray(users.id, userIds))
+			.all();
 
-		if (userPoints.length > 0) {
-			const userIds = userPoints.map((user) => user.userId);
-			const userOrder = db
-				.select({
-					userId: users.id,
-					fullName: sql<string>`${users.firstName} || ' ' || ${users.lastName} AS fullName`
-				})
-				.from(users)
-				.where(inArray(users.id, userIds))
-				.all();
+		console.log(`Week ${week}: User database lookup:`, userOrder);
 
-			console.log(`Week ${week}: User database lookup:`, userOrder);
+		const sortedUserPoints = userPoints.sort((a, b) => a.totalPoints - b.totalPoints);
+		console.log(`Week ${week}: Sorted user points (lowest first):`, sortedUserPoints);
 
-			const sortedUserPoints = userPoints.sort((a, b) => a.totalPoints - b.totalPoints);
-			console.log(`Week ${week}: Sorted user points (lowest first):`, sortedUserPoints);
+		const orderedUsers = sortedUserPoints
+			.map((point) => userOrder.find((user) => user.userId === point.userId))
+			.filter((user): user is { userId: number; fullName: string } => user !== undefined);
 
-			const orderedUsers = sortedUserPoints
-				.map((point) => userOrder.find((user) => user.userId === point.userId))
-				.filter((user): user is { userId: number; fullName: string } => user !== undefined);
-
-			console.log(`Week ${week}: Final ordered users:`, orderedUsers);
-			return buildFullPickOrder(orderedUsers);
-		}
-
-		// If no results in the prior week, look back to the week before that and try again
-		console.log(`No points found for week ${priorWeek}, checking previous week.`);
-		priorWeek--;
+		console.log(`Week ${week}: Final ordered users:`, orderedUsers);
+		return buildFullPickOrder(orderedUsers);
 	}
 
-	// No results found in any prior week, use a random order
-	console.log(`No prior weeks with picks found, randomizing order for week ${week}`);
+	// If no points found in the prior week, use a random order (shouldn't happen if week is complete)
+	console.log(`No points found for completed week ${priorWeek}, using random order for week ${week}`);
 	const randomOrder = getRandomUserOrder();
 	return buildFullPickOrder(randomOrder);
 };

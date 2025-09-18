@@ -39,13 +39,27 @@ export const GET: RequestHandler = async ({ params }) => {
 			}, `Retrieved draft state for week ${week}`);
 		}
 
-		const pickOrder = getPickOrderForWeek(week);
+		try {
+			const pickOrder = getPickOrderForWeek(week);
 
-		return successResponse({
-			draftState: pickOrder,
-			totalPoints: totalPoints,
-			week
-		}, `Retrieved draft order for week ${week}`);
+			return successResponse({
+				draftState: pickOrder,
+				totalPoints: totalPoints,
+				week
+			}, `Retrieved draft order for week ${week}`);
+		} catch (orderError) {
+			// If draft order can't be created (previous week not complete), return empty state
+			if (orderError instanceof Error && orderError.message.includes('cannot be set until week')) {
+				return successResponse({
+					draftState: [],
+					totalPoints: totalPoints,
+					week,
+					hasTeamSelections: false,
+					message: orderError.message
+				}, `Draft order not available for week ${week}`);
+			}
+			throw orderError; // Re-throw unexpected errors
+		}
 	} catch (error) {
 		console.error('Error fetching picks data:', error);
 		return failureResponse(error, 'Failed to fetch picks data');

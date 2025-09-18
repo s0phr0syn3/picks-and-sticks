@@ -220,7 +220,12 @@
 						<!-- Last Updated -->
 						{#if game.lastUpdated}
 							<div class="mt-4 pt-3 border-t text-xs text-gray-400 text-center">
-								Updated: {new Date(game.lastUpdated).toLocaleTimeString()}
+								Updated: {new Date(game.lastUpdated).toLocaleString([], { 
+									month: 'short', 
+									day: 'numeric', 
+									hour: 'numeric', 
+									minute: '2-digit'
+								})}
 							</div>
 						{/if}
 					</div>

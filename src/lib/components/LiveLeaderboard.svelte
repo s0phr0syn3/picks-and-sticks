@@ -105,7 +105,14 @@
 	}
 
 	function formatTime(isoString: string): string {
-		return new Date(isoString).toLocaleTimeString();
+		const date = new Date(isoString);
+		// Show date and time in a concise format
+		return date.toLocaleString([], { 
+			month: 'short', 
+			day: 'numeric', 
+			hour: 'numeric', 
+			minute: '2-digit'
+		});
 	}
 
 	function getGameStatusText(game: GameStatus): string {

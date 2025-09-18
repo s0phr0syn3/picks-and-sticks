@@ -56,6 +56,14 @@ export const POST: RequestHandler = async ({ params }) => {
 		);
 	} catch (error) {
 		console.error('Error starting the draft:', error);
+		
+		// Handle the specific case where the previous week is not complete
+		if (error instanceof Error && error.message.includes('cannot be set until week')) {
+			return new Response(JSON.stringify({ 
+				error: error.message 
+			}), { status: 400 });
+		}
+		
 		return new Response(JSON.stringify({ error: 'Failed to start the draft' }), { status: 500 });
 	}
 };
