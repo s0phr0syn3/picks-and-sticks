@@ -16,6 +16,10 @@
 	let hasTeamSelections: boolean = data.hasTeamSelections || false;
 	let updateInterval: NodeJS.Timeout;
 
+	// Simulation state
+	let isSimulating = false;
+	let simulationError: string | null = null;
+
 	// Determine what to show based on the data
 	let showingDraftState = !hasTeamSelections && draftState.length > 0;
 	let showingCompletedPicks = hasTeamSelections && picks.length > 0;
@@ -80,6 +84,35 @@
 		}
 	}
 
+	async function runSimulation() {
+		if (!confirm(`Are you sure you want to simulate Week ${week}? This will generate picks based on historical patterns and actual game scores, and save them to the database.`)) {
+			return;
+		}
+
+		isSimulating = true;
+		simulationError = null;
+
+		try {
+			const res = await fetch(`/api/simulate/${week}`, {
+				method: 'POST'
+			});
+
+			const response = await res.json();
+
+			if (response.success) {
+				// Simulation succeeded - reload the page to show the simulated picks
+				window.location.reload();
+			} else {
+				simulationError = response.message || 'Failed to run simulation';
+			}
+		} catch (error) {
+			console.error('Error running simulation:', error);
+			simulationError = 'An error occurred while running the simulation';
+		} finally {
+			isSimulating = false;
+		}
+	}
+
 	// Group picks by round for better display
 	$: displayData = showingCompletedPicks ? picks : draftState;
 	$: roundGroups = displayData.reduce((groups, pick) => {
@@ -90,6 +123,9 @@
 		groups[round].push(pick);
 		return groups;
 	}, {} as Record<number, PickWithDetails[]>);
+
+	// Check if any picks have reasoning (indicating simulated week)
+	$: hasReasoning = displayData.some(pick => pick.reasoning);
 
 	// Sort each round by order
 	$: Object.keys(roundGroups).forEach(round => {
@@ -124,13 +160,19 @@
 					<span class="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">
 						2025 Season
 					</span>
+					{#if hasReasoning}
+						<span class="text-sm bg-purple-100 text-purple-800 px-3 py-1 rounded-full font-medium flex items-center gap-1">
+							<span class="text-base">🎲</span>
+							<span>Simulated Week</span>
+						</span>
+					{/if}
 				</div>
 				
 				<!-- Week Navigation -->
 				<div class="flex items-center space-x-3">
-					<button 
+					<button
 						class="btn btn-ghost {week <= 1 ? 'opacity-50 cursor-not-allowed' : ''}"
-						on:click={() => changeWeek(-1)} 
+						on:click={() => changeWeek(-1)}
 						disabled={week <= 1}
 					>
 						← Previous
@@ -138,7 +180,7 @@
 					<div class="text-sm text-gray-600 px-3">
 						Week {week} of 18
 					</div>
-					<button 
+					<button
 						class="btn btn-ghost {week >= 18 ? 'opacity-50 cursor-not-allowed' : ''}"
 						on:click={() => changeWeek(1)}
 						disabled={week >= 18}
@@ -146,6 +188,15 @@
 						Next →
 					</button>
 					<div class="border-l border-gray-300 mx-2 h-6"></div>
+					{#if !hasTeamSelections}
+						<button
+							class="btn btn-secondary"
+							on:click={runSimulation}
+							disabled={isSimulating}
+						>
+							{isSimulating ? '⏳ Simulating...' : '🎲 Simulate Week'}
+						</button>
+					{/if}
 					<a href="/draft/{week}" class="btn btn-primary">View Draft</a>
 				</div>
 			</div>
@@ -185,10 +236,19 @@
 			<div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 rounded-xl shadow-lg mb-8">
 				<div class="text-center">
 					<div class="text-lg font-semibold mb-2">🚀 Ready to Draft</div>
-					<p class="opacity-90 mb-4">Start the draft for Week {week}</p>
-					<button class="btn btn-white" on:click={startDraft}>
-						Start Draft
-					</button>
+					<p class="opacity-90 mb-4">Start the draft for Week {week} or simulate picks</p>
+					<div class="flex gap-3 justify-center">
+						<button class="btn btn-white" on:click={startDraft}>
+							Start Draft
+						</button>
+						<button
+							class="btn btn-white"
+							on:click={runSimulation}
+							disabled={isSimulating}
+						>
+							{isSimulating ? '⏳ Simulating...' : '🎲 Simulate Week'}
+						</button>
+					</div>
 				</div>
 			</div>
 		{/if}
@@ -225,6 +285,9 @@
 									<th class="py-3 px-6 text-left text-xs font-semibold text-gray-600 uppercase">Stuck By</th>
 								{/if}
 								<th class="py-3 px-6 text-left text-xs font-semibold text-gray-600 uppercase">Points</th>
+								{#if hasReasoning}
+									<th class="py-3 px-6 text-left text-xs font-semibold text-gray-600 uppercase">Reasoning</th>
+								{/if}
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-gray-200">
@@ -259,6 +322,15 @@
 											<span class="text-gray-400">—</span>
 										{/if}
 									</td>
+									{#if hasReasoning}
+										<td class="py-4 px-6">
+											{#if pick.reasoning}
+												<span class="text-sm text-gray-600 italic">{pick.reasoning}</span>
+											{:else}
+												<span class="text-gray-400">—</span>
+											{/if}
+										</td>
+									{/if}
 								</tr>
 							{/each}
 						</tbody>
@@ -336,21 +408,46 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- Simulation Error Toast -->
+	{#if simulationError}
+		<div class="fixed bottom-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg max-w-md z-50">
+			<div class="flex items-start">
+				<div class="flex-shrink-0">
+					<span class="text-2xl">⚠️</span>
+				</div>
+				<div class="ml-3 flex-1">
+					<p class="font-semibold">Simulation Failed</p>
+					<p class="text-sm mt-1">{simulationError}</p>
+				</div>
+				<button
+					class="ml-4 text-white hover:text-gray-200"
+					on:click={() => simulationError = null}
+				>
+					✕
+				</button>
+			</div>
+		</div>
+	{/if}
 </main>
 
 <style>
 	.btn {
 		@apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
 	}
-	
+
 	.btn-primary {
 		@apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow-md hover:shadow-lg;
 	}
-	
+
+	.btn-secondary {
+		@apply bg-purple-600 text-white hover:bg-purple-700 focus:ring-purple-500 shadow-md hover:shadow-lg;
+	}
+
 	.btn-white {
 		@apply bg-white text-gray-800 hover:bg-gray-50 focus:ring-gray-500 shadow-md hover:shadow-lg;
 	}
-	
+
 	.btn-ghost {
 		@apply text-gray-600 hover:text-gray-800 hover:bg-gray-100;
 	}

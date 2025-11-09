@@ -243,7 +243,8 @@ export const getPicksForWeek = (week: number) => {
 			round: picks.round,
 			orderInRound: picks.orderInRound,
 			overallPickOrder: sql`(5 * ${picks.round}) + ${picks.orderInRound} - 5`,
-			week: picks.week
+			week: picks.week,
+			reasoning: picks.reasoning
 		})
 		.from(picks)
 		.leftJoin(users, eq(picks.userId, users.id))
@@ -704,4 +705,452 @@ export const getPicksWithGameInfo = (week: number) => {
 	}).filter(pick => pick !== null);
 
 	return picksWithGameInfo;
+};
+
+// ===== SIMULATION FUNCTIONS =====
+
+/**
+ * Get pick history for all users up to a given week
+ * Returns a map of userId -> teamId -> count
+ */
+export const getUserPickHistory = (upToWeek: number) => {
+	const historicalPicks = db
+		.select({
+			userId: picks.userId,
+			teamId: picks.teamId
+		})
+		.from(picks)
+		.where(and(
+			sql`${picks.week} < ${upToWeek}`,
+			sql`${picks.teamId} IS NOT NULL`
+		))
+		.all();
+
+	const history: Record<string, Record<number, number>> = {};
+
+	for (const pick of historicalPicks) {
+		if (!pick.teamId) continue;
+
+		const userIdKey = String(pick.userId);
+		if (!history[userIdKey]) {
+			history[userIdKey] = {};
+		}
+		if (!history[userIdKey][pick.teamId]) {
+			history[userIdKey][pick.teamId] = 0;
+		}
+		history[userIdKey][pick.teamId]++;
+	}
+
+	console.log(`Pick history loaded for weeks 1-${upToWeek - 1}`);
+	return history;
+};
+
+/**
+ * Calculate weighted team selection based on pick history and expected points
+ * Teams picked more frequently get higher weights (showing user affinity)
+ *
+ * @param userId - The user making the selection
+ * @param availableTeamIds - Available teams to choose from
+ * @param pickHistory - Historical pick data for affinity
+ * @param teamPoints - Expected points for each team this week
+ * @param maximizePoints - If true, favor high-scoring teams (picks). If false, favor low-scoring teams (sticks)
+ */
+export const calculateTeamWeights = (
+	userId: string,
+	availableTeamIds: number[],
+	pickHistory: Record<string, Record<number, number>>,
+	teamPoints: Record<number, number>,
+	maximizePoints: boolean = true
+) => {
+	const userHistory = pickHistory[userId] || {};
+
+	// Find min and max points for normalization
+	const allPoints = availableTeamIds.map(id => teamPoints[id] || 0);
+	const minPoints = Math.min(...allPoints, 0);
+	const maxPoints = Math.max(...allPoints, 0);
+	const pointsRange = maxPoints - minPoints;
+
+	// Find max pick count for normalization
+	const allPickCounts = availableTeamIds.map(id => userHistory[id] || 0);
+	const maxPickCount = Math.max(...allPickCounts, 0);
+
+	const weights = availableTeamIds.map(teamId => {
+		const pickCount = userHistory[teamId] || 0;
+		const points = teamPoints[teamId] || 0;
+
+		// Normalize points component (0-1 scale)
+		let pointsScore: number;
+		if (pointsRange > 0) {
+			const normalizedPoints = (points - minPoints) / pointsRange;
+			// For picks: higher points = higher score
+			// For sticks: lower points = higher score (invert)
+			pointsScore = maximizePoints ? normalizedPoints : (1 - normalizedPoints);
+		} else {
+			// All teams have same points
+			pointsScore = 0.5;
+		}
+
+		// Normalize affinity component (0-1 scale)
+		// Add small baseline so teams never picked before still have some chance
+		let affinityScore: number;
+		if (maxPickCount > 0) {
+			affinityScore = pickCount / maxPickCount;
+		} else {
+			// No one has picked any of these teams before
+			affinityScore = 0;
+		}
+
+		// Combined weight: 75% points, 25% affinity
+		// Add small baseline (0.1) to ensure all teams have non-zero weight
+		const weight = 0.1 + (0.75 * pointsScore) + (0.25 * affinityScore);
+
+		return { teamId, weight, pickCount, points };
+	});
+
+	// Sort by weight descending
+	weights.sort((a, b) => b.weight - a.weight);
+
+	return weights;
+};
+
+/**
+ * Calculate expected points for each team based on historical averages from prior weeks
+ * This is used for simulation to avoid using current week's actual scores
+ */
+export const getExpectedTeamPoints = (week: number): Record<number, number> => {
+	// Get historical scores from all weeks BEFORE the target week
+	const historicalHomeScores = db
+		.select({
+			teamId: schedules.homeTeamId,
+			points: sql<number>`COALESCE(${liveScores.homeScore}, ${schedules.homeScore}, 0)`
+		})
+		.from(schedules)
+		.leftJoin(liveScores, eq(schedules.eventId, liveScores.eventId))
+		.where(sql`${schedules.week} < ${week}`)
+		.all();
+
+	const historicalAwayScores = db
+		.select({
+			teamId: schedules.awayTeamId,
+			points: sql<number>`COALESCE(${liveScores.awayScore}, ${schedules.awayScore}, 0)`
+		})
+		.from(schedules)
+		.leftJoin(liveScores, eq(schedules.eventId, liveScores.eventId))
+		.where(sql`${schedules.week} < ${week}`)
+		.all();
+
+	const allHistoricalScores = [...historicalHomeScores, ...historicalAwayScores];
+
+	// Calculate average points per team
+	const teamTotals: Record<number, { total: number; count: number }> = {};
+
+	for (const score of allHistoricalScores) {
+		if (!teamTotals[score.teamId]) {
+			teamTotals[score.teamId] = { total: 0, count: 0 };
+		}
+		teamTotals[score.teamId].total += score.points;
+		teamTotals[score.teamId].count += 1;
+	}
+
+	// Calculate averages and round to nearest integer
+	const expectedPoints: Record<number, number> = {};
+	for (const [teamId, { total, count }] of Object.entries(teamTotals)) {
+		expectedPoints[Number(teamId)] = count > 0 ? Math.round(total / count) : 0;
+	}
+
+	console.log(`Calculated expected points for week ${week} based on ${allHistoricalScores.length} historical games`);
+
+	return expectedPoints;
+};
+
+/**
+ * Select a team for a user using weighted random selection
+ * Higher weights = higher probability of selection
+ */
+export const selectWeightedTeam = (
+	weights: Array<{ teamId: number; weight: number; pickCount: number; points: number }>
+): number => {
+	if (weights.length === 0) {
+		throw new Error('No teams available for selection');
+	}
+
+	const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
+	let random = Math.random() * totalWeight;
+
+	for (const { teamId, weight } of weights) {
+		random -= weight;
+		if (random <= 0) {
+			return teamId;
+		}
+	}
+
+	// Fallback to first team (should never happen)
+	return weights[0].teamId;
+};
+
+/**
+ * Simulate picks for a week where no picks were made
+ * Returns simulated pick data structure matching the real picks format
+ */
+export const simulateWeekPicks = (week: number) => {
+	console.log(`Starting simulation for week ${week}`);
+
+	// Check if picks with actual team selections already exist for this week
+	// Draft order entries (picks with NULL team_id) are allowed
+	const existingPicks = db
+		.select({ id: picks.id })
+		.from(picks)
+		.where(and(
+			eq(picks.week, week),
+			sql`${picks.teamId} IS NOT NULL`
+		))
+		.limit(1)
+		.get();
+
+	if (existingPicks) {
+		throw new Error(`Cannot simulate week ${week}: picks already exist for this week`);
+	}
+
+	// Get pick history up to this week
+	const pickHistory = getUserPickHistory(week);
+
+	// Get expected points based on historical averages from prior weeks
+	// DO NOT use actual scores from the current week
+	const teamPoints = getExpectedTeamPoints(week);
+
+	// Get all teams playing this week
+	const weekGames = db
+		.select({
+			homeTeamId: schedules.homeTeamId,
+			awayTeamId: schedules.awayTeamId
+		})
+		.from(schedules)
+		.where(eq(schedules.week, week))
+		.all();
+
+	const allTeamIds = new Set<number>();
+	for (const game of weekGames) {
+		allTeamIds.add(game.homeTeamId);
+		allTeamIds.add(game.awayTeamId);
+	}
+
+	// Get pick order for this week
+	let pickOrder: Array<{ userId: number; fullName: string; round: number; assignedById: number | null; orderInRound: number }>;
+	try {
+		pickOrder = getPickOrderForWeek(week);
+	} catch (error) {
+		console.error(`Could not get pick order for week ${week}:`, error);
+		throw new Error(`Cannot simulate week ${week}: unable to determine pick order. Previous week may not be complete.`);
+	}
+
+	// Build a map of userId to fullName for quick lookups
+	const userIdToName = new Map<number, string>();
+	for (const pick of pickOrder) {
+		userIdToName.set(pick.userId, pick.fullName);
+	}
+
+	const selectedTeamIds = new Set<number>();
+	const simulatedPicks: Array<{
+		userId: number;
+		fullName: string;
+		teamId: number;
+		teamName: string;
+		round: number;
+		orderInRound: number;
+		assignedById: number | null;
+		assignedByFullName: string | null;
+		points: number;
+		reasoning: string;
+		pickCount: number;
+	}> = [];
+
+	// Simulate each pick
+	for (const pickSlot of pickOrder) {
+		const availableTeamIds = Array.from(allTeamIds).filter(id => !selectedTeamIds.has(id));
+
+		if (availableTeamIds.length === 0) {
+			console.error(`No teams available for pick ${pickSlot.orderInRound} in round ${pickSlot.round}`);
+			break;
+		}
+
+		// Determine if this is a pick (rounds 1-2) or stick (rounds 3-4)
+		const isPick = pickSlot.round <= 2;
+		const isStick = pickSlot.round >= 3;
+
+		// For picks (rounds 1-2): user selects for themselves, wants HIGH points
+		// For sticks (rounds 3-4): assignedBy selects for victim, wants LOW points
+		const selectingUserId = isStick && pickSlot.assignedById
+			? String(pickSlot.assignedById)
+			: String(pickSlot.userId);
+
+		// Calculate weights
+		const weights = calculateTeamWeights(
+			selectingUserId,
+			availableTeamIds,
+			pickHistory,
+			teamPoints,
+			isPick // maximize points for picks, minimize for sticks
+		);
+
+		// Select a team
+		const selectedTeamId = selectWeightedTeam(weights);
+		selectedTeamIds.add(selectedTeamId);
+
+		// Get team name
+		const teamInfo = db
+			.select({ name: teams.name })
+			.from(teams)
+			.where(eq(teams.teamId, selectedTeamId))
+			.get();
+
+		// Generate reasoning for this pick
+		const selectedWeight = weights.find(w => w.teamId === selectedTeamId);
+		const points = selectedWeight?.points || 0;
+
+		// For reasoning about pick history, use the victim's history (the person getting the team)
+		const victimHistory = pickHistory[String(pickSlot.userId)] || {};
+		const pickCount = victimHistory[selectedTeamId] || 0;
+
+		// Determine reasoning based on pick history and score
+		// Note: points here are expected points based on historical averages
+		let reasoning = '';
+		if (isStick) {
+			// For sticks: emphasize LOW points are the goal
+			if (pickCount === 0) {
+				reasoning = `Never picked before • ~${points} avg pts (low)`;
+			} else {
+				const timesText = pickCount === 1 ? 'once' : `${pickCount} times`;
+				reasoning = `Picked ${timesText} previously • ~${points} avg pts (low)`;
+			}
+		} else {
+			// For picks: emphasize HIGH points are the goal
+			if (pickCount === 0) {
+				reasoning = `Never picked before • ~${points} avg pts`;
+			} else {
+				const timesText = pickCount === 1 ? 'once' : `${pickCount} times`;
+				reasoning = `Picked ${timesText} previously • ~${points} avg pts`;
+			}
+		}
+
+		// Add context about why this was a good choice
+		const topWeights = weights.slice(0, 3);
+		const rank = topWeights.findIndex(w => w.teamId === selectedTeamId);
+		if (rank === 0) {
+			reasoning += isStick ? ' • Worst team available' : ' • Best weighted option';
+		} else if (rank >= 0) {
+			const suffix = rank === 0 ? 'st' : rank === 1 ? 'nd' : 'rd';
+			reasoning += isStick
+				? ` • ${rank + 1}${suffix} worst option`
+				: ` • ${rank + 1}${suffix} best option`;
+		}
+
+		simulatedPicks.push({
+			userId: pickSlot.userId,
+			fullName: pickSlot.fullName,
+			teamId: selectedTeamId,
+			teamName: teamInfo?.name || 'Unknown',
+			round: pickSlot.round,
+			orderInRound: pickSlot.orderInRound,
+			assignedById: pickSlot.assignedById,
+			assignedByFullName: pickSlot.assignedById ? userIdToName.get(pickSlot.assignedById) || null : null,
+			points: teamPoints[selectedTeamId] || 0,
+			reasoning: reasoning,
+			pickCount: pickCount
+		});
+	}
+
+	console.log(`Simulation complete: ${simulatedPicks.length} picks generated`);
+
+	// Save simulated picks to database
+	console.log(`Saving ${simulatedPicks.length} simulated picks to database...`);
+
+	// First, delete any existing draft order entries for this week
+	db.delete(picks).where(eq(picks.week, week)).run();
+
+	// Insert the simulated picks
+	const picksToInsert = simulatedPicks.map(pick => ({
+		week: week,
+		round: pick.round,
+		userId: String(pick.userId),
+		teamId: pick.teamId,
+		orderInRound: pick.orderInRound,
+		assignedById: pick.assignedById ? String(pick.assignedById) : null,
+		reasoning: pick.reasoning
+	}));
+
+	db.insert(picks).values(picksToInsert).run();
+
+	// Mark the week as simulated
+	const now = new Date();
+	db.insert(weeks)
+		.values({
+			weekNumber: week,
+			isSimulated: true,
+			isDraftLocked: true,
+			createdAt: now,
+			updatedAt: now
+		})
+		.onConflictDoUpdate({
+			target: weeks.weekNumber,
+			set: {
+				isSimulated: true,
+				isDraftLocked: true,
+				updatedAt: now
+			}
+		})
+		.run();
+
+	console.log(`✅ Week ${week} simulated and saved to database`);
+
+	return simulatedPicks;
+};
+
+/**
+ * Calculate results from simulated picks
+ * Returns user totals and winner
+ */
+export const getSimulatedResults = (
+	simulatedPicks: Array<{
+		userId: number;
+		fullName: string;
+		teamId: number;
+		teamName: string;
+		round: number;
+		orderInRound: number;
+		assignedById: number | null;
+		points: number;
+		reasoning: string;
+		pickCount: number;
+	}>
+) => {
+	const userTotals: Record<string, { fullName: string; totalPoints: number; picks: typeof simulatedPicks }> = {};
+
+	for (const pick of simulatedPicks) {
+		const userIdKey = String(pick.userId);
+		if (!userTotals[userIdKey]) {
+			userTotals[userIdKey] = {
+				fullName: pick.fullName,
+				totalPoints: 0,
+				picks: []
+			};
+		}
+		userTotals[userIdKey].totalPoints += pick.points;
+		userTotals[userIdKey].picks.push(pick);
+	}
+
+	const sortedUsers = Object.entries(userTotals)
+		.map(([userId, data]) => ({
+			userId,
+			fullName: data.fullName,
+			totalPoints: data.totalPoints,
+			picks: data.picks
+		}))
+		.sort((a, b) => b.totalPoints - a.totalPoints);
+
+	const winner = sortedUsers.length > 0 ? sortedUsers[0] : null;
+
+	return {
+		users: sortedUsers,
+		winner
+	};
 };

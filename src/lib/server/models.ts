@@ -50,7 +50,8 @@ export const picks = sqliteTable('picks', {
 		.notNull(),
 	teamId: integer('team_id').references(() => teams.teamId),
 	orderInRound: integer('order_in_round').notNull(),
-	assignedById: text('assigned_by_id').references(() => users.id)
+	assignedById: text('assigned_by_id').references(() => users.id),
+	reasoning: text('reasoning')
 });
 
 export const weeks = sqliteTable('weeks', {
@@ -58,6 +59,7 @@ export const weeks = sqliteTable('weeks', {
 	weekNumber: integer('week_number').notNull().unique(),
 	punishment: text('punishment'),
 	isDraftLocked: integer('is_draft_locked', { mode: 'boolean' }).notNull().default(false),
+	isSimulated: integer('is_simulated', { mode: 'boolean' }).notNull().default(false),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 	updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull()
 });

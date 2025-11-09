@@ -135,6 +135,7 @@ export function successResponse(
 ) {
 	return new Response(
 		JSON.stringify({
+			success: true,
 			message,
 			data
 		}),

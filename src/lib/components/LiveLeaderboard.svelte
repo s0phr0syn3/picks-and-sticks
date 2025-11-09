@@ -33,6 +33,7 @@
 		awayTeamId?: number;
 		quarter?: string;
 		timeRemaining?: string;
+		reasoning?: string | null;
 	}
 
 	interface GameStatus {
@@ -107,10 +108,10 @@
 	function formatTime(isoString: string): string {
 		const date = new Date(isoString);
 		// Show date and time in a concise format
-		return date.toLocaleString([], { 
-			month: 'short', 
-			day: 'numeric', 
-			hour: 'numeric', 
+		return date.toLocaleString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			hour: 'numeric',
 			minute: '2-digit'
 		});
 	}
@@ -158,36 +159,36 @@
 		if (pick.gameDate) {
 			const gameTime = new Date(pick.gameDate);
 			const now = new Date();
-			
+
 			// Always show day of week and time to distinguish games across different days
-			const day = gameTime.toLocaleDateString([], { weekday: 'short' });
-			const time = gameTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-			
+			const day = gameTime.toLocaleDateString('en-US', { weekday: 'short' });
+			const time = gameTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
 			// If game is today, emphasize it
 			if (gameTime.toDateString() === now.toDateString()) {
 				return `Today ${time}`;
 			}
-			
+
 			// If game is tomorrow
 			const tomorrow = new Date(now);
 			tomorrow.setDate(tomorrow.getDate() + 1);
 			if (gameTime.toDateString() === tomorrow.toDateString()) {
 				return `Tomorrow ${time}`;
 			}
-			
+
 			// For all other games within the current season, show day and time
 			const diffDays = Math.ceil((gameTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 			if (diffDays <= 14 && diffDays >= -1) {
 				return `${day} ${time}`;
 			}
-			
+
 			// For games further out, show full date
-			return gameTime.toLocaleDateString([], { 
+			return gameTime.toLocaleDateString('en-US', {
 				weekday: 'short',
-				month: 'short', 
+				month: 'short',
 				day: 'numeric',
-				hour: 'numeric', 
-				minute: '2-digit' 
+				hour: 'numeric',
+				minute: '2-digit'
 			});
 		}
 		
@@ -287,55 +288,60 @@
 							<div class="border-t border-gray-200 p-4 bg-white">
 								<h4 class="font-semibold text-gray-800 mb-3">Picks</h4>
 								<div class="space-y-2">
-									{#each player.picks.sort((a, b) => {
+									{#each [...player.picks].sort((a, b) => {
 									// First priority: Live games
 									if (a.isLive && !b.isLive) return -1;
 									if (!a.isLive && b.isLive) return 1;
-									
+
 									// Second priority: Completed games with points (highest first)
 									if (a.points !== null && a.points !== undefined && b.points !== null && b.points !== undefined) {
 										return b.points - a.points;
 									}
 									if (a.points !== null && a.points !== undefined) return -1;
 									if (b.points !== null && b.points !== undefined) return 1;
-									
+
 									// Third priority: Sort by game date/time (earliest first)
 									if (a.gameDate && b.gameDate) {
 										return new Date(a.gameDate).getTime() - new Date(b.gameDate).getTime();
 									}
-									
+
 									// Fallback to round order
 									return a.round - b.round;
 								}) as pick}
-										<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-											<div class="flex items-center space-x-3">
-												<div class="text-sm text-gray-500">{pick.round}</div>
-												<div>
-													<div class="font-medium text-gray-900">{pick.team || 'TBD'}</div>
-													<div class="text-xs text-gray-500">
-														{getOpponentText(pick) || `Pick #${pick.overallPickOrder}`}
-													</div>
+									<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+										<div class="flex items-center space-x-3 flex-1 min-w-0">
+											<div class="text-sm text-gray-500 flex-shrink-0">{pick.round}</div>
+											<div class="flex-1 min-w-0">
+												<div class="font-medium text-gray-900">{pick.team || 'TBD'}</div>
+												<div class="text-xs text-gray-500">
+													{getOpponentText(pick) || `Pick #${pick.overallPickOrder}`}
 												</div>
-											</div>
-											<div class="text-right">
-												{#if pick.points !== null && pick.points !== undefined}
-													<div class="font-bold {pick.points > 0 ? 'text-green-600' : 'text-gray-600'}">
-														{pick.points} pts
+												{#if pick.reasoning}
+													<div class="text-xs text-gray-600 italic mt-1">
+														{pick.reasoning}
 													</div>
-												{/if}
-												<div class="text-sm {pick.isComplete ? 'text-gray-500' : pick.isLive ? 'text-red-600' : 'text-gray-500'}">
-													{#if pick.isComplete}
-														Final
-													{:else}
-														{getGameStatusForPick(pick)}
-													{/if}
-												</div>
-												{#if pick.isLive}
-													<div class="text-xs text-red-500 animate-pulse">● Live</div>
 												{/if}
 											</div>
 										</div>
-									{/each}
+										<div class="text-right flex-shrink-0 ml-4">
+											{#if pick.points !== null && pick.points !== undefined}
+												<div class="font-bold {pick.points > 0 ? 'text-green-600' : 'text-gray-600'}">
+													{pick.points} pts
+												</div>
+											{/if}
+											<div class="text-sm {pick.isComplete ? 'text-gray-500' : pick.isLive ? 'text-red-600' : 'text-gray-500'}">
+												{#if pick.isComplete}
+													Final
+												{:else}
+													{getGameStatusForPick(pick)}
+												{/if}
+											</div>
+											{#if pick.isLive}
+												<div class="text-xs text-red-500 animate-pulse">● Live</div>
+											{/if}
+										</div>
+									</div>
+								{/each}
 								</div>
 							</div>
 						{/if}

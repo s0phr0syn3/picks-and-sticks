@@ -47,6 +47,7 @@ export interface PickWithDetails extends Pick {
 	assignedByFullName: string | null;
 	overallPickOrder: number;
 	points?: number;
+	reasoning?: string | null;
 }
 
 export interface UserWithPoints {

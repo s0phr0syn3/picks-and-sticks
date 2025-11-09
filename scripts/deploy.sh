@@ -29,6 +29,7 @@ npm install
 
 echo -e "${BLUE}🗄️  Running database migrations...${NC}"
 NODE_ENV=production npx tsx scripts/migrate-add-draft-lock.ts
+NODE_ENV=production npx tsx scripts/migrate-add-reasoning.ts
 
 echo -e "${BLUE}🗄️  Initializing production database...${NC}"
 NODE_ENV=production npm run db:init
