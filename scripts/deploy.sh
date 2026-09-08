@@ -25,7 +25,7 @@ echo -e "${BLUE}📡 Pulling latest changes from GitHub...${NC}"
 git pull origin main
 
 echo -e "${BLUE}📦 Installing/updating dependencies...${NC}"
-npm install
+npm ci
 
 echo -e "${BLUE}🗄️  Running database migrations...${NC}"
 NODE_ENV=production npx tsx scripts/migrate-add-draft-lock.ts
