@@ -88,3 +88,13 @@ export const userWeeklyScores = sqliteTable('user_weekly_scores', {
 }, (table) => ({
 	userWeekUnique: unique().on(table.userId, table.week)
 }));
+
+export const seasons = sqliteTable('seasons', {
+	id: integer('id').primaryKey(),
+	year: integer('year').notNull().unique(),
+	startDate: integer('start_date', { mode: 'timestamp' }).notNull(),
+	endDate: integer('end_date', { mode: 'timestamp' }),
+	status: text('status', { enum: ['upcoming', 'active', 'archived'] }).notNull(),
+	createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+	updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull()
+})
