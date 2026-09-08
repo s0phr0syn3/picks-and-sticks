@@ -27,6 +27,19 @@ svelte-dnd-action. PM2 behind nginx behind Cloudflare.
   `pm2 restart`. New migration scripts must be added to that script explicitly.
 - Node now binds `127.0.0.1:3000` (changed 2026-09-07). Do not revert to `0.0.0.0`.
 
+
+## About the code blocks
+
+**Migration scripts (Tasks 1 and 2) are complete, runnable files** — imports,
+`DB_PATHS`/`ENV` resolution, try/catch/finally, and the invocation at the bottom.
+Copy them whole. They are standalone executables run by `deploy.sh`, so a missing
+import is a failed deploy.
+
+**Everything else is a fragment** — function bodies, interface sketches, and diffs.
+They show the logic, not the file. Supply imports from surrounding scope as usual.
+Where a fragment names a type or function, its exact signature is in that task's
+**Produces:** line.
+
 ---
 
 # Phase 1 — Season model (BLOCKING, do first)
@@ -169,89 +182,167 @@ them in one script and one transaction keeps the database consistent if it fails
 **Produces:** `weeks.season_id`, `picks.season_id`, `user_weekly_scores.season_id`;
 composite uniques `(season_id, week_number)` and `(season_id, user_id, week)`.
 
-- [ ] **Step 1: Write the migration**
+- [ ] **Step 1: Write the migration** — `scripts/migrate-add-season-scoping.ts`
 
-**`PRAGMA foreign_keys` cannot be changed inside a transaction** — it silently
-no-ops. It must be set before `BEGIN` and restored after `COMMIT`.
+Three things this has to get right, in order of how badly they bite:
+
+1. **Idempotency.** `deploy.sh` runs every migration on every deploy. Without a
+   guard, the second run finds `season_id` already on `weeks`, so
+   `INSERT INTO weeks_new SELECT ...` fails on column count and the deploy dies.
+   `migrate-add-reasoning.ts` already uses the right pattern — check `PRAGMA
+   table_info` and return early.
+2. **`PRAGMA foreign_keys` cannot be changed inside a transaction.** It silently
+   no-ops there. Set it before, restore it after.
+3. **Check for FK violations *inside* the transaction** so a failure rolls back.
+   Throwing from the `transaction()` callback aborts it.
 
 ```ts
-const sqlite = new Database(dbPath);
-sqlite.pragma('foreign_keys = OFF');
+#!/usr/bin/env node
 
-const migrate = sqlite.transaction(() => {
-  const s2025 = sqlite.prepare('SELECT id FROM seasons WHERE year = 2025').get() as { id: number };
+import Database from 'better-sqlite3';
+import { config } from 'dotenv';
+import * as path from 'path';
 
-  // --- weeks: unique(week_number) -> unique(season_id, week_number)
-  sqlite.exec(`
-    CREATE TABLE weeks_new (
-      id              INTEGER PRIMARY KEY,
-      season_id       INTEGER NOT NULL REFERENCES seasons(id),
-      week_number     INTEGER NOT NULL,
-      punishment      TEXT,
-      is_draft_locked INTEGER NOT NULL DEFAULT 0,
-      is_simulated    INTEGER NOT NULL DEFAULT 0,
-      created_at      INTEGER NOT NULL,
-      updated_at      INTEGER NOT NULL,
-      UNIQUE (season_id, week_number)
-    );
-    INSERT INTO weeks_new
-      SELECT id, ${s2025.id}, week_number, punishment, is_draft_locked,
-             is_simulated, created_at, updated_at FROM weeks;
-    DROP TABLE weeks;
-    ALTER TABLE weeks_new RENAME TO weeks;
-  `);
+config();
 
-  // --- picks: no constraint change, but add the column
-  sqlite.exec(`
-    CREATE TABLE picks_new (
-      id              INTEGER PRIMARY KEY,
-      season_id       INTEGER NOT NULL REFERENCES seasons(id),
-      week            INTEGER NOT NULL,
-      round           INTEGER NOT NULL,
-      user_id         TEXT    NOT NULL REFERENCES users(id),
-      team_id         INTEGER REFERENCES teams(team_id),
-      order_in_round  INTEGER NOT NULL,
-      assigned_by_id  TEXT REFERENCES users(id),
-      reasoning       TEXT,
-      turn_started_at INTEGER
-    );
-    INSERT INTO picks_new (id, season_id, week, round, user_id, team_id,
-                           order_in_round, assigned_by_id, reasoning, turn_started_at)
-      SELECT id, ${s2025.id}, week, round, user_id, team_id,
-             order_in_round, assigned_by_id, reasoning, NULL FROM picks;
-    DROP TABLE picks;
-    ALTER TABLE picks_new RENAME TO picks;
-  `);
+const DB_PATHS = {
+	production: process.env.DB_PATH_PROD || './src/lib/server/production.db',
+	development: process.env.DB_PATH_DEV || './src/lib/server/development.db',
+	test: process.env.DB_PATH_TEST || './src/lib/server/test.db'
+};
 
-  // --- user_weekly_scores: unique(user_id, week) -> unique(season_id, user_id, week)
-  sqlite.exec(`
-    CREATE TABLE user_weekly_scores_new (
-      id               INTEGER PRIMARY KEY,
-      season_id        INTEGER NOT NULL REFERENCES seasons(id),
-      user_id          TEXT    NOT NULL REFERENCES users(id),
-      week             INTEGER NOT NULL,
-      current_points   INTEGER NOT NULL DEFAULT 0,
-      projected_points INTEGER NOT NULL DEFAULT 0,
-      completed_games  INTEGER NOT NULL DEFAULT 0,
-      total_games      INTEGER NOT NULL DEFAULT 0,
-      last_updated     INTEGER NOT NULL,
-      UNIQUE (season_id, user_id, week)
-    );
-    INSERT INTO user_weekly_scores_new
-      SELECT id, ${s2025.id}, user_id, week, current_points, projected_points,
-             completed_games, total_games, last_updated FROM user_weekly_scores;
-    DROP TABLE user_weekly_scores;
-    ALTER TABLE user_weekly_scores_new RENAME TO user_weekly_scores;
-  `);
+const ENV = (process.env.NODE_ENV || 'development') as keyof typeof DB_PATHS;
+
+async function migrateSeasonScoping() {
+	console.log(`Running season-scoping migration for ${ENV} database...`);
+
+	const dbPath = DB_PATHS[ENV];
+	console.log(`Database location: ${path.resolve(dbPath)}`);
+
+	const sqlite = new Database(dbPath);
+
+	try {
+		// --- idempotency guard -------------------------------------------------
+		const weekCols = sqlite.prepare('PRAGMA table_info(weeks)').all() as { name: string }[];
+		if (weekCols.some(c => c.name === 'season_id')) {
+			console.log('season_id already present. No migration needed.');
+			return;
+		}
+
+		// --- precondition ------------------------------------------------------
+		const s2025 = sqlite.prepare('SELECT id FROM seasons WHERE year = 2025').get() as
+			{ id: number } | undefined;
+		if (!s2025) {
+			throw new Error('No 2025 row in seasons. Run migrate-add-seasons.ts first.');
+		}
+		const sid = s2025.id;
+
+		sqlite.pragma('foreign_keys = OFF');
+
+		const migrate = sqlite.transaction(() => {
+			// --- weeks: unique(week_number) -> unique(season_id, week_number)
+			sqlite.exec(`
+				CREATE TABLE weeks_new (
+					id              INTEGER PRIMARY KEY,
+					season_id       INTEGER NOT NULL REFERENCES seasons(id),
+					week_number     INTEGER NOT NULL,
+					punishment      TEXT,
+					is_draft_locked INTEGER NOT NULL DEFAULT 0,
+					is_simulated    INTEGER NOT NULL DEFAULT 0,
+					created_at      INTEGER NOT NULL,
+					updated_at      INTEGER NOT NULL,
+					UNIQUE (season_id, week_number)
+				);
+				INSERT INTO weeks_new
+					(id, season_id, week_number, punishment, is_draft_locked,
+					 is_simulated, created_at, updated_at)
+				SELECT id, ${sid}, week_number, punishment, is_draft_locked,
+				       is_simulated, created_at, updated_at FROM weeks;
+				DROP TABLE weeks;
+				ALTER TABLE weeks_new RENAME TO weeks;
+			`);
+
+			// --- picks: add season_id and turn_started_at (Phase 2 uses the latter;
+			//     added here so production is only rebuilt once)
+			sqlite.exec(`
+				CREATE TABLE picks_new (
+					id              INTEGER PRIMARY KEY,
+					season_id       INTEGER NOT NULL REFERENCES seasons(id),
+					week            INTEGER NOT NULL,
+					round           INTEGER NOT NULL,
+					user_id         TEXT    NOT NULL REFERENCES users(id),
+					team_id         INTEGER REFERENCES teams(team_id),
+					order_in_round  INTEGER NOT NULL,
+					assigned_by_id  TEXT REFERENCES users(id),
+					reasoning       TEXT,
+					turn_started_at INTEGER
+				);
+				INSERT INTO picks_new
+					(id, season_id, week, round, user_id, team_id,
+					 order_in_round, assigned_by_id, reasoning, turn_started_at)
+				SELECT id, ${sid}, week, round, user_id, team_id,
+				       order_in_round, assigned_by_id, reasoning, NULL FROM picks;
+				DROP TABLE picks;
+				ALTER TABLE picks_new RENAME TO picks;
+			`);
+
+			// --- user_weekly_scores: unique(user_id, week) -> unique(season_id, user_id, week)
+			sqlite.exec(`
+				CREATE TABLE user_weekly_scores_new (
+					id               INTEGER PRIMARY KEY,
+					season_id        INTEGER NOT NULL REFERENCES seasons(id),
+					user_id          TEXT    NOT NULL REFERENCES users(id),
+					week             INTEGER NOT NULL,
+					current_points   INTEGER NOT NULL DEFAULT 0,
+					projected_points INTEGER NOT NULL DEFAULT 0,
+					completed_games  INTEGER NOT NULL DEFAULT 0,
+					total_games      INTEGER NOT NULL DEFAULT 0,
+					last_updated     INTEGER NOT NULL,
+					UNIQUE (season_id, user_id, week)
+				);
+				INSERT INTO user_weekly_scores_new
+					(id, season_id, user_id, week, current_points, projected_points,
+					 completed_games, total_games, last_updated)
+				SELECT id, ${sid}, user_id, week, current_points, projected_points,
+				       completed_games, total_games, last_updated FROM user_weekly_scores;
+				DROP TABLE user_weekly_scores;
+				ALTER TABLE user_weekly_scores_new RENAME TO user_weekly_scores;
+			`);
+
+			// Inside the transaction: a throw here rolls everything back.
+			const violations = sqlite.pragma('foreign_key_check') as unknown[];
+			if (violations.length > 0) {
+				throw new Error(`foreign_key_check found ${violations.length} violation(s)`);
+			}
+		});
+
+		migrate();
+		sqlite.pragma('foreign_keys = ON');
+
+		const counts = sqlite.prepare(`
+			SELECT (SELECT COUNT(*) FROM weeks)  AS weeks,
+			       (SELECT COUNT(*) FROM picks)  AS picks,
+			       (SELECT COUNT(*) FROM user_weekly_scores) AS scores
+		`).get();
+		console.log('Row counts after migration:', counts);
+		console.log(`Season-scoping migration complete for ${ENV}!`);
+	} catch (error) {
+		console.error('Migration failed:', error);
+		process.exit(1);
+	} finally {
+		sqlite.close();
+	}
+}
+
+migrateSeasonScoping().catch(error => {
+	console.error('Fatal error:', error);
+	process.exit(1);
 });
-
-migrate();
-sqlite.pragma('foreign_keys = ON');
-console.log(sqlite.pragma('foreign_key_check'));  // expect []
 ```
 
-`turn_started_at` is added here rather than in a later migration so the production
-DB is only rebuilt once. Phase 2 uses it; Phase 1 leaves it NULL.
+Note the explicit column lists on every `INSERT ... SELECT`. Positional inserts
+would work today and break the first time someone adds a column to one of these
+tables without updating the migration.
 
 - [ ] **Step 2: Update the Drizzle models** to match — add `seasonId` to `picks`,
       `weeks`, `userWeeklyScores`; add `turnStartedAt` to `picks`; change the unique
