@@ -1,6 +1,9 @@
 {
 	"name": "picks-and-sticks",
 	"version": "1.1.0",
+	"engines": {
+		"node": ">=26"
+	},
 	"private": true,
 	"scripts": {
 		"dev": "vite dev",
@@ -49,7 +52,7 @@
 		"@tailwindcss/typography": "^0.5.16",
 		"@types/node-cron": "^3.0.11",
 		"bcryptjs": "^3.0.2",
-		"better-sqlite3": "^11.10.0",
+		"better-sqlite3": "^13.0.3",
 		"daisyui": "^4.12.24",
 		"dotenv": "^16.6.1",
 		"drizzle-orm": "^0.44.5",
